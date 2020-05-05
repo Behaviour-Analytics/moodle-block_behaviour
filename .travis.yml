@@ -18,8 +18,7 @@ php:
 
 env:
  global:
-  - IGNORE_PATHS=amd/src/d3.js,amd/src/mersennetwister.js,amd/src/nouislider.js
-  - IGNORE_PATHS=javascript/d3,javascript/MersenneTwister,javascript/noUiSlider,javascript/d3.geom.concaveHull
+  - IGNORE_PATHS=amd/src/d3.js,amd/src/mersennetwister.js,amd/src/nouislider.js,javascript/d3,javascript/MersenneTwister,javascript/noUiSlider,javascript/d3.geom.concaveHull
   - MOODLE_BRANCH=MOODLE_38_STABLE
  matrix:
   - DB=pgsql
