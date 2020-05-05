@@ -20,7 +20,7 @@ php:
 
 env:
  global:
-  - IGNORE_PATHS=javascript/d3,javascript/d3.geom.concaveHull,javascript/MersenneTwister,javascript/noUiSlider-14.3.0
+  - IGNORE_PATHS=amd/src/d3.js,amd/src/mersennetwister.js,amd/src/nouislider.js
   - MOODLE_BRANCH=MOODLE_34_STABLE
   - MOODLE_BRANCH=MOODLE_35_STABLE
   - MOODLE_BRANCH=MOODLE_36_STABLE

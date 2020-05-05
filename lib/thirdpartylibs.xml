@@ -1,0 +1,31 @@
+<?xml version="1.0"?>
+<libraries>
+    <library>
+        <location>javascript/d3/</location>
+        <name>D3</name>
+        <version>5.8.2</version>
+        <license>BSD 3-Clause "New" or "Revised" License</license>
+        <licenseversion>3.0</licenseversion>
+    </library>
+    <library>
+        <location>javascript/d3.geom.concaveHull/</location>
+        <name>D3 Geometry Concave Hull</name>
+        <version>1.0.0</version>
+        <license>Unlicense</license>
+        <licenseversion>1.0</licenseversion>
+    </library>
+    <library>
+        <location>javascript/MersenneTwister/</location>
+        <name>Mersenne Twister</name>
+        <version>1.0.0</version>
+        <license>BSD 3-Clause "New" or "Revised" License</license>
+        <licenseversion>3.0</licenseversion>
+    </library>
+    <library>
+        <location>javascript/noUiSlider/</location>
+        <name>No UI Slider</name>
+        <version>14.3.0</version>
+        <license>MIT</license>
+        <licenseversion>1.0</licenseversion>
+    </library>
+</libraries>
