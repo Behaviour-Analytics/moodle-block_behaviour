@@ -14,17 +14,12 @@ cache:
     - $HOME/.npm
 
 php:
- - 7.1
- - 7.2
  - 7.3
 
 env:
  global:
   - IGNORE_PATHS=amd/src/d3.js,amd/src/mersennetwister.js,amd/src/nouislider.js
-  - MOODLE_BRANCH=MOODLE_34_STABLE
-  - MOODLE_BRANCH=MOODLE_35_STABLE
-  - MOODLE_BRANCH=MOODLE_36_STABLE
-  - MOODLE_BRANCH=MOODLE_37_STABLE
+  - IGNORE_PATHS=javascript/d3,javascript/MersenneTwister,javascript/noUiSlider,javascript/d3.geom.concaveHull
   - MOODLE_BRANCH=MOODLE_38_STABLE
  matrix:
   - DB=pgsql
