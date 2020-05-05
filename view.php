@@ -381,7 +381,8 @@ $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // CSS.
 $PAGE->requires->css('/blocks/behaviour/css/styles.css');
-$PAGE->requires->css('/blocks/behaviour/javascript/noUiSlider-13.1.1/distribute/nouislider.css');
+#$PAGE->requires->css('/blocks/behaviour/javascript/noUiSlider-13.1.1/distribute/nouislider.css');
+$PAGE->requires->css('/blocks/behaviour/javascript/noUiSlider-14.3.0/distribute/nouislider.css');
 
 // Language strings.
 $out['strings'] = array(

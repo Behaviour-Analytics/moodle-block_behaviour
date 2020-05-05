@@ -1,4 +1,3 @@
-/*! nouislider - 14.3.0 - 5/5/2020 */
 (function(factory) {
     if (typeof define === "function" && define.amd) {
         // AMD. Register as an anonymous module.
@@ -13,7 +12,7 @@
 })(function() {
     "use strict";
 
-    var VERSION = "14.3.0";
+    var VERSION = "%%REPLACE_THIS_WITH_VERSION%%";
 
     //region Helper Methods
 
