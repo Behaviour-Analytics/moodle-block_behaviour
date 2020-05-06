@@ -28,9 +28,6 @@
     if (typeof define === "function" && define.amd) {
         // AMD. Register as an anonymous module.
         define([], factory);
-    } else if (typeof exports === "object") {
-        // Node/CommonJS.
-        module.exports = factory();
     } else {
         // Browser globals.
         window.behaviourAnalytics = factory();
@@ -40,128 +37,124 @@
     var behaviourAnalytics = function(incoming) {
 
         // These variables are the server-side scripts that are called.
-        var coordsScript,    // Updates the node coordinates during node positioning.
-            clustersScript,  // Updates the clustering results and membership changes.
-            commentsScript,  // Updates the teacher comments about centroids.
-            manualScript;    // Updates manual clustering during replay.
+        var coordsScript, // Updates the node coordinates during node positioning.
+            clustersScript, // Updates the clustering results and membership changes.
+            commentsScript, // Updates the teacher comments about centroids.
+            manualScript; // Updates manual clustering during replay.
 
         // These variables get their values from the server data.
-        var logs,        // Array of all logs from the server.
-            users,       // Array of user data from server.
-            modules,     // Array of module information.
-            origMods,    // Copy of modules.
-            panelWidth,  // Width of left menu panel.
+        var logs, // Array of all logs from the server.
+            users, // Array of user data from server.
+            modules, // Array of module information.
+            panelWidth, // Width of left menu panel.
             legendWidth, // Width of right legend panel.
-            courseName,  // Name of the course.
-            iframeURL,   // Server prefix for iframes.
+            courseName, // Name of the course.
+            iframeURL, // Server prefix for iframes.
             positioning, // Boolean flag indicates regular graphing or node positioning.
             presetNodes, // Predetermined node coordinates from server.
-            origNodes,   // Copy of presetNodes.
             coordsScale, // Scale value used for normalizing preset nodes.
-            origScale,   // Copy of coordsScale.
-            courseId,    // Course id number.
-            userId,      // Teacher user id number.
-            allGraphs,   // For researcher role, all other teachers graphs.
-            allScales,   // For researcher role, all teachers scales.
-            allChanges,  // For researcher role, all teachers change times.
-            allNames,    // For researcher role, all teachers usernames.
-            allMods,     // For researcher role, all users mods (node coords).
+            courseId, // Course id number.
+            userId, // Teacher user id number.
+            allGraphs, // For researcher role, all other teachers graphs.
+            allScales, // For researcher role, all teachers scales.
+            allChanges, // For researcher role, all teachers change times.
+            allNames, // For researcher role, all teachers usernames.
+            allMods, // For researcher role, all users mods (node coords).
             allSetNames, // For researcher role, all dataset names
-            allsKey,     // For researcher role, current key into previous arrays.
-            lastChange,  // Time of last node positioning change.
-            comments,    // Any comments this teacher user has made during clustering.
+            allsKey, // For researcher role, current key into previous arrays.
+            lastChange, // Time of last node positioning change.
+            comments, // Any comments this teacher user has made during clustering.
             realUserIds, // Map of anonymized id to real id.
             anonUserIds, // Map of real user ids to anonymous ids.
             langStrings, // An array of language dependent strings.
-            sessionKey;  // The session key gets sent back to the server to avoid CSRF.
+            sessionKey; // The session key gets sent back to the server to avoid CSRF.
 
         // These variables are external packages used in the plugin.
-        var ddd,    // D3 package.
-            trans,  // D3 transition.
+        var ddd, // D3 package.
+            trans, // D3 transition.
             slider, // The noUiSlider package.
-            prng;   // Psuedo random number generator, i.e. Mersenne Twister package.
+            prng; // Psuedo random number generator, i.e. Mersenne Twister package.
 
         // Main graphing variables.
-        var graph,         // The main graph.
-            width,         // The graph width.
-            height,        // The graph height.
-            simulation,    // The force directed simulation.
-            graphNodes,    // The graph nodes.
-            graphLinks,    // The graph links.
-            linkForce,     // The link force in simulation.
+        var graph, // The main graph.
+            width, // The graph width.
+            height, // The graph height.
+            simulation, // The force directed simulation.
+            graphNodes, // The graph nodes.
+            graphLinks, // The graph links.
+            linkForce, // The link force in simulation.
             defaultWeight, // The default link weight.
-            linkAlpha,     // The base alpha value.
-            dragAlpha,     // The alpha when dragging.
-            dragEndAlpha,  // The alpha when done dragging.
-            graphData;     // The node and link data.
+            linkAlpha, // The base alpha value.
+            dragAlpha, // The alpha when dragging.
+            dragEndAlpha, // The alpha when done dragging.
+            graphData; // The node and link data.
 
         // The main UI variables.
-        var studentMenu,   // Student select menu used in graphing.
-            timeSlider,    // The time slider used in graphing.
-            sliderValues,  // Values on time slider.
-            sliderHeight,  // Height of time slider.
+        var studentMenu, // Student select menu used in graphing.
+            timeSlider, // The time slider used in graphing.
+            sliderValues, // Values on time slider.
+            sliderHeight, // Height of time slider.
             clusterButton, // Cluster/graph button to switch between graphing/clustering.
-            replaying,     // Clustering replay flag.
-            replayMenu,    // Clustering replay menu of clustering runs.
-            replayData,    // Clustering replay data, iterations of current clustering.
-            replayCentroid,// Clustering replay centroid and scale data.
-            replayScales,  // Array of old scale values for clustering replay.
+            replaying, // Clustering replay flag.
+            replayMenu, // Clustering replay menu of clustering runs.
+            replayData, // Clustering replay data, iterations of current clustering.
+            replayCentroid, // Clustering replay centroid and scale data.
             positiveIters, // Clustering replay, number of positive value iterations.
             negativeIters, // Clustering replay, number of negative value iterations.
             clusterSlider, // The clustering slider used in clustering.
-            clusterSliderValue,      // Value of cluster slider.
+            clusterSliderValue, // Value of cluster slider.
             clusterSliderPanelWidth, // Width of cluster slider.
-            logPanel,      // Text area log panel used in clustsering.
-            nodeLegend,    // Hiearchical legend used in node positioning.
-            nodeBoxes,     // Node checkboxes in node legend.
-            teacherMenu;   // Teacher select menu used in positioning (researchers).
+            logPanel, // Text area log panel used in clustsering.
+            nodeLegend, // Hiearchical legend used in node positioning.
+            nodeBoxes, // Node checkboxes in node legend.
+            teacherMenu; // Teacher select menu used in positioning (researchers).
 
         // Other variables.
-        var colours,         // Array of html colours for user links and hulls.
-            colourIndex,     // Index of current colour in colours.
-            modColours,      // Module colours for nodes.
+        var colours, // Array of html colours for user links and hulls.
+            colourIndex, // Index of current colour in colours.
+            modColours, // Module colours for nodes.
             centroidColours, // Array of colours for centroids.
-            graphing,        // Are we graphing or clustering?
-            clustering,      // Are we clustering or just in clustering stage?
-            clusterIters,    // Number of cluster iterations.
+            graphing, // Are we graphing or clustering?
+            clustering, // Are we clustering or just in clustering stage?
+            clusterIters, // Number of cluster iterations.
             clusterAnimInterval, // Clustering animation interval.
-            useDefaultConcave,   // Should use default setting for hull?
+            useDefaultConcave, // Should use default setting for hull?
             concaveHullDistance, // If not use default, then need new distance.
-            curveType,       // Type of curve for line drawing.
-            hullOpacity,     // Opacity for hulls.
-            hullCentroids,   // Centroids of student hulls.
+            curveType, // Type of curve for line drawing.
+            hullOpacity, // Opacity for hulls.
+            hullCentroids, // Centroids of student hulls.
             scaledCentroids, // Centroids after scaling.
-            centroids,       // Current clustering centroids.
-            oldCentroids,    // Centroids from last clustering iteration.
+            centroids, // Current clustering centroids.
+            oldCentroids, // Centroids from last clustering iteration.
             noCentroidMouse, // Flag for setting and unsetting mouse listeners.
-            noNodeMouse,     // Flag for setting and unsetting mouse listeners.
+            noNodeMouse, // Flag for setting and unsetting mouse listeners.
             iframeStaticPos, // Flag to place iframe at window edge/below node.
-            iframeRight,     // Flag to position an iframe on the right side.
-            inIframe,        // Flag to remove iframe or not.
-            version38,       // Flag for iframe offset, different in 3.8.
+            iframeRight, // Flag to position an iframe on the right side.
+            inIframe, // Flag to remove iframe or not.
+            version38, // Flag for iframe offset, different in 3.8.
             convergenceDistance, // Mean distance between old centroids and new.
-            dragEndTime,     // Time dragging was stopped.
+            dragEndTime, // Time dragging was stopped.
             dragstartedFunc, // Node drag started function.
-            draggedFunc,     // Node dragging function.
-            dragendedFunc,   // Node drag ended function.
-            rightClickFunc,  // Node right click function.
-            nodeRadius,      // Size of module nodes, smaller if smaller screen.
-            coordsData,      // Holds data about the module coordinates.
-            animTime,        // Animation delay.
-            gotAllNodes;     // Flag to determine if there are new nodes to consider.
+            draggedFunc, // Node dragging function.
+            dragendedFunc, // Node drag ended function.
+            rightClickFunc, // Node right click function.
+            nodeRadius, // Size of module nodes, smaller if smaller screen.
+            coordsData, // Holds data about the module coordinates.
+            animTime, // Animation delay.
+            gotAllNodes; // Flag to determine if there are new nodes to consider.
 
-        var manualClusters = {},  // Keeps clustering data for manual clustering during replay.
+        var manualClusters = {}, // Keeps clustering data for manual clustering during replay.
             manualCentroids = [], // Keeps centroid data for manual clustering during replay.
             haveManualClustering, // Flag to see if manual clustering has been done.
-            centroidDragTime,     // Student centroids can be clicked or dragged, short drag == click.
-            replayUserId,         // Other users data is seen when researcher runs replay, keep track.
-            isResearcher;         // Flag to show or not the clustering measures.
+            centroidDragTime, // Student centroids can be clicked or dragged, short drag == click.
+            replayUserId, // Other users data is seen when researcher runs replay, keep track.
+            isResearcher; // Flag to show or not the clustering measures.
 
-        var clickData,             // The student click data.
+        var clickData, // The student click data.
             useGeometricCentroids; // Flag to determine how to calculate centroids.
 
         // Debugging.
-        var debugCentroids,  // Turn on/off centroid debugging.
+        var debugCentroids, // Turn on/off centroid debugging.
             serverCentroids; // Copy of centroid values calculated at server.
 
         /**
@@ -169,61 +162,58 @@
          * initializes various variables, then calls the necessary functions to run the
          * program.
          *
-         * @param array incoming Data from server
+         * @param {array} incoming - Data from server
          */
         function init(incoming) {
 
             // Get incoming data from the server.
-            logs            = incoming.logs;
-            users           = incoming.users;
-            modules         = incoming.mods;
-            origMods        = incoming.mods;
-            panelWidth      = incoming.panelwidth;
-            legendWidth     = incoming.legendwidth;
-            courseName      = incoming.name;
-            iframeURL       = incoming.iframeurl;
-            version38       = incoming.version38;
-            positioning     = incoming.positioning;
-            presetNodes     = incoming.nodecoords;
-            origNodes       = incoming.nodecoords;
-            courseId        = incoming.courseid;
-            userId          = incoming.userid;
-            coordsScale     = incoming.scale;
-            origScale       = incoming.scale;
-            allGraphs       = incoming.graphs;
-            allScales       = incoming.scales;
-            allChanges      = incoming.changes;
-            allNames        = incoming.names;
-            allMods         = incoming.allmods;
-            allSetNames     = incoming.setnames;
-            allsKey         = userId;
-            lastChange      = incoming.lastchange;
-            comments        = incoming.comments;
-            langStrings     = incoming.strings;
-            coordsScript    = incoming.coordsscript;
-            clustersScript  = incoming.clustersscript;
-            commentsScript  = incoming.commentsscript;
-            manualScript    = incoming.manualscript;
-            sessionKey      = incoming.sesskey;
-            gotAllNodes     = incoming.gotallnodes;
-            replaying       = incoming.replaying;
-            debugCentroids  = incoming.debugcentroids;
+            logs = incoming.logs;
+            users = incoming.users;
+            modules = incoming.mods;
+            panelWidth = incoming.panelwidth;
+            legendWidth = incoming.legendwidth;
+            courseName = incoming.name;
+            iframeURL = incoming.iframeurl;
+            version38 = incoming.version38;
+            positioning = incoming.positioning;
+            presetNodes = incoming.nodecoords;
+            courseId = incoming.courseid;
+            userId = incoming.userid;
+            coordsScale = incoming.scale;
+            allGraphs = incoming.graphs;
+            allScales = incoming.scales;
+            allChanges = incoming.changes;
+            allNames = incoming.names;
+            allMods = incoming.allmods;
+            allSetNames = incoming.setnames;
+            allsKey = userId;
+            lastChange = incoming.lastchange;
+            comments = incoming.comments;
+            langStrings = incoming.strings;
+            coordsScript = incoming.coordsscript;
+            clustersScript = incoming.clustersscript;
+            commentsScript = incoming.commentsscript;
+            manualScript = incoming.manualscript;
+            sessionKey = incoming.sesskey;
+            gotAllNodes = incoming.gotallnodes;
+            replaying = incoming.replaying;
+            debugCentroids = incoming.debugcentroids;
             serverCentroids = incoming.centroids;
-            isResearcher    = incoming.isresearcher;
-            replayUserId    = userId;
+            isResearcher = incoming.isresearcher;
+            replayUserId = userId;
 
             // Get external packages.
-            ddd = window.dataDrivenDocs || d3;
-            slider = window.noUiSlider || noUiSlider;
-            var mt = window.mersenneTwister || MersenneTwister;
-            prng = new mt(259);
+            ddd = window.dataDrivenDocs;
+            slider = window.noUiSlider;
+            var MT = window.mersenneTwister;
+            prng = new MT(259);
 
             // Get base values for various variables.
             colourIndex = 0;
-            colours     = getColours();
+            colours = getColours();
 
             dragEndTime = Date.now() + 3000;
-            animTime    = 1000;
+            animTime = 1000;
             trans = ddd.transition().duration(animTime).ease(ddd.easeLinear);
 
             // Should be dynamic sizes?
@@ -247,7 +237,7 @@
 
             modColours = {
                 'originalLinks': 'lightgrey', // Removed from colours[].
-                'grouping':      'black',     // Removed from colours[].
+                'grouping':      'black', // Removed from colours[].
                 'assignment':    'blue',
                 'quiz':          'red',
                 'forum':         'orange',
@@ -259,13 +249,12 @@
                 'lesson':        'brown',
             };
 
-            centroidColours = [ 'blue', 'red', 'orange', 'green', 'yellow', 'brown',
-                                'purple', 'magenta', 'cyan'];
+            centroidColours = ['blue', 'red', 'orange', 'green', 'yellow', 'brown',
+                               'purple', 'magenta', 'cyan'];
 
             // Basic dimensions.
             sliderHeight = positioning ? 0 : 36;
-            panelWidth   = positioning ? 0 : panelWidth;
-            legendlWidth = positioning ? 0 : legendWidth;
+            panelWidth = positioning ? 0 : panelWidth;
 
             width = window.innerWidth - clusterSliderPanelWidth - legendWidth - 150;
             height = window.innerHeight - sliderHeight - 90;
@@ -284,13 +273,9 @@
 
             if (replaying) {
                 doClusterReplay(incoming.replaydata, incoming.manualdata);
-            }
-            // If doing node positioning.
-            else if (positioning) {
+            } else if (positioning) {
                 initPositioning();
-            }
-            // Not positioning == regular graphing.
-            else {
+            } else {
                 initGraphing();
             }
         }
@@ -300,11 +285,11 @@
          * Returns an array of select (darker) html colour names taken from
          * https://www.w3schools.com/colors/colors_names.asp.
          *
-         * @return array
+         * @return {array}
          */
         function getColours() {
 
-            var c = ['aqua', 'blue' ,'blueviolet' ,'brown',
+            var c = ['aqua', 'blue', 'blueviolet', 'brown',
                      'cadetblue', 'chartreuse', 'chocolate', 'coral', 'cornflowerblue',
                      'crimson', 'cyan', 'darkblue', 'darkcyan', 'darkgoldenrod',
                      'darkgrey', 'darkgreen', 'darkmagenta', 'darkolivegreen',
@@ -357,7 +342,7 @@
          */
         function getData() {
 
-            graphData = { nodes: [], links: [], edges: {}, maxSession: 0 };
+            graphData = {nodes: [], links: [], edges: {}, maxSession: 0};
 
             makeNodeData();
             makeStudentLinks();
@@ -370,12 +355,17 @@
         function makeNodeData() {
 
             var data = graphData;
-            var ob = {}, vis, xc, yc;
+            var ob = {},
+                vis,
+                xc,
+                yc;
 
             // Make nodes from modules.
             modules.forEach(function(m) {
 
-                vis = true, xc = undefined, yc = undefined;
+                vis = true;
+                xc = undefined;
+                yc = undefined;
 
                 if (presetNodes[m.id]) {
                     // Ensure group node visible as well, for new nodes.
@@ -418,7 +408,7 @@
                         name:    langStrings.section + ' ' + m.sect,
                         group:   m.sect,
                         type:    'grouping',
-                        colour:  modColours['grouping'],
+                        colour:  modColours.grouping,
                         visible: vis,
                         xcoord:  xc,
                         ycoord:  yc
@@ -432,16 +422,16 @@
                     source: 'g' + m.sect,
                     target: m.id,
                     weight: defaultWeight,
-                    colour: modColours['originalLinks']
+                    colour: modColours.originalLinks
                 };
             });
 
             xc = yc = undefined;
 
             // Make root node for course.
-            if (presetNodes['root']) {
-                xc = presetNodes['root'].xcoord;
-                yc = presetNodes['root'].ycoord;
+            if (presetNodes.root) {
+                xc = presetNodes.root.xcoord;
+                yc = presetNodes.root.ycoord;
             }
 
             var r = {
@@ -449,7 +439,7 @@
                 name:    courseName,
                 group:   -1,
                 type:    'grouping',
-                colour:  modColours['grouping'],
+                colour:  modColours.grouping,
                 visible: true,
                 xcoord:  xc,
                 ycoord:  yc
@@ -462,11 +452,13 @@
                         source: 'root',
                         target: ob[o].id,
                         weight: defaultWeight,
-                        colour: modColours['originalLinks']
+                        colour: modColours.originalLinks
                     };
                 }
             } else {
-                data.nodes = data.nodes.filter(function(dn) { return dn.id != 'g0'; });
+                data.nodes = data.nodes.filter(function(dn) {
+                    return dn.id != 'g0';
+                });
                 data.links.forEach(function(dl) {
                     if (dl.source == 'g0') {
                         dl.source = 'root';
@@ -482,7 +474,10 @@
          */
         function makeStudentLinks() {
 
-            var data = graphData, m = 0, n = 0, edge;
+            var data = graphData,
+                m = 0,
+                n = 0,
+                edge;
             clickData = {};
 
             // Go through the logs to make the student link sets.
@@ -513,9 +508,8 @@
 
                     edge.target = logs[i + 1].moduleId;
                     data.edges[logs[i].userId][m++] = edge;
-                }
-                // Student clicked only 1 thing, not enough to make a link, fake it.
-                else if (data.edges[logs[i].userId].length == 0) {
+                } else if (data.edges[logs[i].userId].length == 0) {
+                    // Student clicked only 1 thing, not enough to make a link, fake it.
 
                     data.edges[logs[i].userId][m++] = edge;
                 }
@@ -623,7 +617,7 @@
             } else {
                 // Already have preset nodes to work with.
                 makeStudentMenu();
-                initGraph();
+                initGraph(0);
                 makeTimeSlider();
             }
 
@@ -633,9 +627,9 @@
         /**
          * Makes the basic initial graph.
          *
-         * @param number strength The strength value for the link force.
+         * @param {number} strength - The strength value for the link force.
          */
-        function initGraph(strength = 0) {
+        function initGraph(strength) {
 
             // The actual graph.
             graph = ddd.select('#graph')
@@ -645,7 +639,9 @@
 
             // The link force and simulation.
             linkForce = ddd.forceLink(graphData.links)
-                .id(d => d.id)
+                .id(function(d) {
+                    return d.id;
+                })
                 .strength(strength);
 
             simulation = ddd.forceSimulation(graphData.nodes)
@@ -704,7 +700,7 @@
                     drawTime();
 
                     // If we have no preset coords for this course, make some.
-                    if (Object.keys(presetNodes).length == 0 || ! gotAllNodes) {
+                    if (Object.keys(presetNodes).length == 0 || !gotAllNodes) {
                         sendCoordsToServer();
                         graphData.edges = {};
                         makeStudentLinks();
@@ -715,7 +711,7 @@
             }
 
             // Ensure any newly introduced nodes are rendered properly.
-            if (graphing && ! gotAllNodes) {
+            if (graphing && !gotAllNodes) {
                 setTimeout(function() {
                     graphData.nodes = [];
                     graphData.links = [];
@@ -727,11 +723,11 @@
         /**
          * Function to make the nodes for the graph.
          *
-         * @param array nodes array The nodes data
-         * @param function rclick Right click function to assign to the nodes
-         * @param function dstart Drag started function
-         * @param function drag Dragging function
-         * @param function dend Drag ended function
+         * @param {array} nodes - The nodes data
+         * @param {function} rclick - Right click function to assign to the nodes
+         * @param {function} dstart - Drag started function
+         * @param {function} drag - Dragging function
+         * @param {function} dend - Drag ended function
          */
         function makeNodes(nodes, rclick, dstart, drag, dend) {
 
@@ -752,7 +748,7 @@
         /**
          * Function to make the links for the graph.
          *
-         * @param array links The link data
+         * @param {array} links - The link data
          */
         function makeLinks(links) {
 
@@ -760,16 +756,21 @@
                 .data(links)
                 .enter().append("line")
                 .attr("class", "link")
-                .style('stroke', function(d) { return d.colour; })
-                .style("stroke-width", function(d) { return (d.weight * 2) + 'px'; });
+                .style('stroke', function(d) {
+                    return d.colour;
+                })
+                .style("stroke-width", function(d) {
+                    return (d.weight * 2) + 'px';
+                });
         }
 
         /**
          * Event listener for mouse hovering over nodes. Shows the text box and iframe preview.
          *
-         * @param object node Node that is dragged
+         * @param {object} node - Node that is dragged
+         * @param {boolean} keepText - Flag to keep text on screen or not
          */
-        function mouseover(node, keepText = false) {
+        function mouseover(node, keepText) {
 
             if (noNodeMouse) {
                 return;
@@ -787,8 +788,13 @@
                 return;
             }
 
-            var rtrn = [0], up = false, left = false, right = false;
-            var rwidth = 150, ifwidth = 304, ifheight = 154;
+            var rtrn = [0],
+                up = false,
+                left = false,
+                right = false;
+            var rwidth = 150,
+                ifwidth = 304,
+                ifheight = 154;
             var txt = node.type + '_' + node.name;
 
             if (iframeStaticPos) {
@@ -827,9 +833,18 @@
             }
 
             // Make the rectange background.
+            var attrX;
+            if (right) {
+                attrX = node.x;
+            } else if (left) {
+                attrX = node.x - (rwidth + 6);
+            } else {
+                attrX = node.x - (rwidth + 6) / 2;
+            }
+
             var r = graph.append('rect')
                 .attr('id', 'r-' + node.id)
-                .attr('x', right ? node.x : left ? node.x - (rwidth + 6) : node.x - (rwidth + 6) / 2)
+                .attr('x', attrX)
                 .attr('y', up ? height - rh - 16 - (height - node.y) : node.y + 16)
                 .attr('width', rwidth + 16)
                 .attr('height', rh)
@@ -854,10 +869,10 @@
          * Called to wrap long text into predefined width.
          * Adapted from https://bl.ocks.org/mbostock/7555321
          *
-         * @param string text The text to wrap
-         * @param number width The predefined width
-         * @param number xOffset The offset of the x value
-         * @param array rtrn Stores the return value
+         * @param {string} text - The text to wrap
+         * @param {number} rectWidth - The predefined width
+         * @param {number} xOffset - The offset of the x value
+         * @param {array} rtrn - Stores the return value
          */
         function wrap(text, rectWidth, xOffset, rtrn) {
 
@@ -876,12 +891,13 @@
 
                 var tspan = text.text(null)
                     .append("tspan")
-                    .attr("x",xOffset)
+                    .attr("x", xOffset)
                     .attr("y", y)
                     .attr("dy", dy + "em");
 
                 // While there are words to wrap.
-                while (word = words.pop()) {
+                word = words.pop();
+                while (word) {
 
                     line.push(word);
                     tspan.text(line.join(" "));
@@ -900,6 +916,7 @@
                             .attr("dy", (++lineNumber * lineHeight + dy) + "em")
                             .text(word);
                     }
+                    word = words.pop();
                 }
             });
 
@@ -909,16 +926,16 @@
         /**
          * Function to make an iframe preview for a module node.
          *
-         * @param number nodeId The module id of the associated node
-         * @param number rectH The height of the node's text box
-         * @param number rectW The width of the nodes text box
-         * @param number ifwidth Iframe width
-         * @param number ifheight Iframe height
-         * @param boolean up If node near bottom, move up
-         * @param boolean right If node near left side, move right
-         * @param boolean left If node near right side, move left
-         * @param number rectX Rectangle background x coordinate value
-         * @param numberrectY Rectangle background y coordinate value
+         * @param {number} node - The module id of the associated node
+         * @param {number} rectH - The height of the node's text box
+         * @param {number} rectW - The width of the nodes text box
+         * @param {number} ifwidth - Iframe width
+         * @param {number} ifheight - Iframe height
+         * @param {boolean} up - If node near bottom, move up
+         * @param {boolean} right - If node near left side, move right
+         * @param {boolean} left - If node near right side, move left
+         * @param {number} rectX - Rectangle background x coordinate value
+         * @param {number} rectY - Rectangle background y coordinate value
          */
         function makeIframe(node, rectH, rectW, ifwidth, ifheight, up, right, left, rectX, rectY) {
 
@@ -927,8 +944,8 @@
             iframe.id = 'preview';
 
             iframe.style.position = 'absolute';
-            iframe.style.width    = ifwidth + 'px';
-            iframe.style.height   = ifheight + 'px';
+            iframe.style.width = ifwidth + 'px';
+            iframe.style.height = ifheight + 'px';
 
             // Position relative to the node and text box considering the window offset of the graph.
             var gbb = document.getElementsByTagName('svg')[0].getBoundingClientRect();
@@ -937,24 +954,33 @@
 
             // Fixes bug where iframe too low when page scrolled to top.
             if (bbb.x > 0) {
-                bbb.x == 0;
+                bbb.x = 0;
             }
+
             // Iframe may be placed statically at right side or statically at left side
             // or need to move right or left or remain centered.
-            iframe.style.left =
-                iframeRight ? (window.innerWidth - 10 - ifwidth) + 'px' :
-                iframeStaticPos ? '10px' :
-                right ? (rectX + gbb.x) + 'px' :
-                left ? (rectX + gbb.x + rectW - ifwidth + 18) + 'px' :
-                (rectX + gbb.x - (ifwidth / 2) + (rectW / 2)) + 'px';
+            if (iframeRight) {
+                iframe.style.left = (window.innerWidth - 10 - ifwidth) + 'px';
+            } else if (iframeStaticPos) {
+                iframe.style.left = '10px';
+            } else if (right) {
+                iframe.style.left = (rectX + gbb.x) + 'px';
+            } else if (left) {
+                iframe.style.left = (rectX + gbb.x + rectW - ifwidth + 18) + 'px';
+            } else {
+                iframe.style.left = (rectX + gbb.x - (ifwidth / 2) + (rectW / 2)) + 'px';
+            }
 
             var yoffset = version38 ? 0 : 50;
 
             // May need to be placed statically or moved up or remain under.
-            iframe.style.top =
-                iframeStaticPos ? (gbb.y - bbb.y + (height / 2)) + 'px' :
-                up ? (yoffset + rectY + gbb.y - bbb.y - ifheight) + 'px' :
-                (yoffset + rectY + gbb.y + rectH - bbb.y) + 'px';
+            if (iframeStaticPos) {
+                iframe.style.top = (gbb.y - bbb.y + (height / 2)) + 'px';
+            } else if (up) {
+                iframe.style.top = (yoffset + rectY + gbb.y - bbb.y - ifheight) + 'px';
+            } else {
+                iframe.style.top = (yoffset + rectY + gbb.y + rectH - bbb.y) + 'px';
+            }
 
             // Make the iframe preview, unless it is an external resource. These cause
             // a new window to open with error, causing problems MATH215.
@@ -966,10 +992,10 @@
                 bgrnd.style.position = 'absolute';
 
                 // Position background so there is a border around iframe, 12px.
-                bgrnd.style.width  = (parseInt(iframe.style.width) + 24) + 'px';
+                bgrnd.style.width = (parseInt(iframe.style.width) + 24) + 'px';
                 bgrnd.style.height = (parseInt(iframe.style.height) + 24) + 'px';
-                bgrnd.style.left   = (parseInt(iframe.style.left) - 12) + 'px';
-                bgrnd.style.top    = (parseInt(iframe.style.top) - 12) + 'px';
+                bgrnd.style.left = (parseInt(iframe.style.left) - 12) + 'px';
+                bgrnd.style.top = (parseInt(iframe.style.top) - 12) + 'px';
 
                 // Mouse leaves border, could be in or out of iframe.
                 bgrnd.addEventListener('mouseout', function(m) {
@@ -1003,7 +1029,7 @@
          * the text box and iframe, unless the mouse is in the iframe, then it gets
          * left on screen until the mouse is out of the iframe.
          *
-         * @param object obj Node or link that is listening for the event
+         * @param {object} obj - Node or link that is listening for the event
          */
         function mouseout(obj) {
 
@@ -1048,9 +1074,9 @@
                 // Replace centroid listeners.
                 for (var i = 0; i < centroids.length; i++) {
                     ddd.select('#cluster1-' + i)
-                        .on('mouseover', clusteroidMouseover.bind(this, i));
+                        .on('mouseover', clusteroidMouseover.bind(this, i, false));
                     ddd.select('#cluster2-' + i)
-                        .on('mouseover', clusteroidMouseover.bind(this, i));
+                        .on('mouseover', clusteroidMouseover.bind(this, i, false));
                 }
             }
         }
@@ -1085,7 +1111,7 @@
 
                 if (sx < 0 || sx > width || sy < 0 || sy > height) {
 
-                    dist *= 0.9
+                    dist *= 0.9;
                     --i;
                 }
             }
@@ -1094,16 +1120,17 @@
             coordsData.distance = dist;
 
             // Ensure links are positioned correctly.
-            graphLinks.attr("x1", function(l) {
+            graphLinks
+                .attr("x1", function(l) {
 
-                var sourceNode = graphData.nodes.filter(function(d) {
-                    var sid = typeof l.source == 'string' ? l.source : l.source.id;
-                    return d.id == sid;
-                })[0];
+                    var sourceNode = graphData.nodes.filter(function(d) {
+                        var sid = typeof l.source == 'string' ? l.source : l.source.id;
+                        return d.id == sid;
+                    })[0];
 
-                ddd.select(this).attr("y1", (sourceNode.ycoord * dist) + yofs);
-                return (sourceNode.xcoord * dist) + xofs;
-            })
+                    ddd.select(this).attr("y1", (sourceNode.ycoord * dist) + yofs);
+                    return (sourceNode.xcoord * dist) + xofs;
+                })
                 .attr("x2", function(l) {
 
                     var targetNode = graphData.nodes.filter(function(d) {
@@ -1119,10 +1146,21 @@
                 });
 
             // Give nodes the preset coordinates, scaled to current screen.
-            graphNodes.attr('cx', function(d) { return d.x = (d.xcoord * dist) + xofs; })
-                .attr('cy', function(d) { return d.y = (d.ycoord * dist) + yofs; })
-                .style('display', function(d) { return (!d.visible) ? 'none' : 'block'; })
-                .style('fill', (d => d.colour))
+            graphNodes
+                .attr('cx', function(d) {
+                    d.x = (d.xcoord * dist) + xofs;
+                    return d.x;
+                })
+                .attr('cy', function(d) {
+                    d.y = (d.ycoord * dist) + yofs;
+                    return d.y;
+                })
+                .style('display', function(d) {
+                    return (!d.visible) ? 'none' : 'block';
+                })
+                .style('fill', (function(d) {
+                    return d.colour;
+                }))
                 .raise();
         }
 
@@ -1134,22 +1172,41 @@
             var radius = nodeRadius;
 
             // Basic link function to move links with nodes.
-            graphLinks.attr("x1", function(d) { return d.source.x; })
-                .attr("y1", function(d) { return d.source.y; })
-                .attr("x2", function(d) { return d.target.x; })
-                .attr("y2", function(d) { return d.target.y; })
-                .style("stroke-width", function(d) { return (d.weight * 2) + 'px'; })
-                .style("display", function(d) { return d.source.visible && d.target.visible ? 'block' : 'none'; });
+            graphLinks
+                .attr("x1", function(d) {
+                    return d.source.x;
+                })
+                .attr("y1", function(d) {
+                    return d.source.y;
+                })
+                .attr("x2", function(d) {
+                    return d.target.x;
+                })
+                .attr("y2", function(d) {
+                    return d.target.y;
+                })
+                .style("stroke-width", function(d) {
+                    return (d.weight * 2) + 'px';
+                })
+                .style("display", function(d) {
+                    return d.source.visible && d.target.visible ? 'block' : 'none';
+                });
 
             // Keep nodes on screen when dragging.
             graphNodes.attr("cx", function(d) {
-                return d.x = Math.max(radius, Math.min(width - radius, d.x));
+                d.x = Math.max(radius, Math.min(width - radius, d.x));
+                return d.x;
             })
                 .attr("cy", function(d) {
-                    return d.y = Math.max(radius, Math.min(height - radius, d.y));
+                    d.y = Math.max(radius, Math.min(height - radius, d.y));
+                    return d.y;
                 })
-                .style('fill', (d => d.colour))
-                .style("display", function(d) { return d.visible ? 'block' : 'none'; })
+                .style('fill', (function(d) {
+                    return d.colour;
+                }))
+                .style("display", function(d) {
+                    return d.visible ? 'block' : 'none';
+                })
                 .raise();
 
             // Raise for proper visual presentation.
@@ -1162,7 +1219,7 @@
          */
         function drawTime() {
 
-            if (! allNames) {
+            if (!allNames) {
                 return;
             }
 
@@ -1210,7 +1267,7 @@
                     if (key == 'scale' || key == 'module') {
                         continue;
                     }
-                    nodes[key] = normalized[key]
+                    nodes[key] = normalized[key];
                 }
 
                 // Update the nodes.
@@ -1233,12 +1290,18 @@
         /**
          * Called to normalize the coordinates of the module nodes.
          *
-         * @return object
+         * @return {object}
          */
         function normalizeNodes() {
 
             var normalized = {};
-            var dx, dy, d, maxNode, max = 0, cx = width / 2, cy = height / 2;
+            var dx,
+                dy,
+                d,
+                maxNode,
+                max = 0,
+                cx = width / 2,
+                cy = height / 2;
 
             // Find node with greatest distance from centre.
             graphData.nodes.forEach(function(dn) {
@@ -1281,8 +1344,8 @@
         /**
          * Function called to send data to server.
          *
-         * @param string url The name of the file receiving the data
-         * @param object outData The data to send to the server
+         * @param {string} url - The name of the file receiving the data
+         * @param {object} outData - The data to send to the server
          */
         function callServer(url, outData) {
 
@@ -1292,7 +1355,7 @@
 
             req.onreadystatechange = function() {
                 if (this.readyState == 4 && this.status == 200) {
-                    console.log(this.responseText);
+                    // Log console.log(this.responseText); to console?
                 }
             };
             req.send('cid=' + courseId + '&data=' + JSON.stringify(outData) +
@@ -1328,7 +1391,7 @@
             teacherMenu.id = 'teacher-select';
             teacherMenu.style.minWidth = '40px';
 
-            menuHeight = height - bHeight - 20;
+            var menuHeight = height - bHeight - 20;
             teacherMenu.style.height = menuHeight + 'px';
             teacherMenu.addEventListener('change', changeGraph);
 
@@ -1428,10 +1491,10 @@
             // Change the preset nodes and scales.
             presetNodes = allGraphs[key];
             coordsScale = allScales[key];
-            lastChange  = allChanges[key];
-            modules     = allMods[key];
-            courseName  = allSetNames[key];
-            allsKey     = key;
+            lastChange = allChanges[key];
+            modules = allMods[key];
+            courseName = allSetNames[key];
+            allsKey = key;
 
             // Redo the graph and legend.
             graph.remove();
@@ -1481,7 +1544,8 @@
         function makeNodeLegend() {
 
             // Hierarchical legend.
-            var maxWidth = 500, mpos;
+            var maxWidth = 500,
+                mpos;
             nodeLegend = document.getElementById('legend');
             nodeLegend.style = 'width: ' + legendWidth + 'px; height: ' + height +
                 'px; min-width: ' + legendWidth + 'px; max-width: ' + maxWidth + 'px;';
@@ -1531,7 +1595,7 @@
                 }
             });
 
-            document.addEventListener('mouseup', function(e) {
+            document.addEventListener('mouseup', function() {
                 nodeLegend.removeEventListener('mousemove', legendResize);
             });
 
@@ -1543,7 +1607,7 @@
          * Make the hierarchical node legend during the node positioning stage.
          * Adapted from https://www.w3schools.com/howto/howto_js_treeview.asp.
          *
-         * @param DOM element parent The parent to append to
+         * @param {HTMLElement} parent - The parent to append to
          */
         function makeLegend(parent) {
 
@@ -1562,7 +1626,10 @@
             rootLI.appendChild(rootUL);
             root.appendChild(rootLI);
 
-            var li, ul, span, section = -1;
+            var li,
+                ul,
+                span,
+                section = -1;
 
             // Need a checkbox for each module node, grouped by section.
             modules.forEach(function(m) {
@@ -1581,7 +1648,7 @@
                     li.appendChild(span);
 
                     getCheckbox('g' + m.sect, langStrings.section + ' ' + m.sect,
-                                modColours['grouping'], m.sect, 'grouping', li);
+                                modColours.grouping, m.sect, 'grouping', li);
 
                     li.appendChild(ul);
                     rootUL.appendChild(li);
@@ -1612,12 +1679,12 @@
         /**
          * Gets a checkbox with label for the hierarchical node legend.
          *
-         * @param number mid The module id
-         * @param string name The label text
-         * @param string colour The colour of associated node
-         * @param string group The group the box belongs to
-         * @param string nodeType The type of node
-         * @param DOM element parent The parent element to append to
+         * @param {number} mid - The module id
+         * @param {string} name - The label text
+         * @param {string} colour - The colour of associated node
+         * @param {string} group - The group the box belongs to
+         * @param {string} nodeType - The type of node
+         * @param {HTMLElement} parent - The parent element to append to
          */
         function getCheckbox(mid, name, colour, group, nodeType, parent) {
 
@@ -1697,6 +1764,7 @@
         function checkWeight() {
 
             var weight = parseFloat(document.getElementById('weight-slider').value);
+
             if (weight < 0) {
                 linkForce.strength(0);
                 document.getElementById('weights-output').innerHTML = '&nbsp;= 0';
@@ -1708,7 +1776,7 @@
          * Event listener for right clcking nodes. Creates a small menu that can be used
          * to hide the associated node.
          *
-         * @param node object - node that is dragged
+         * @param {object} node - The node that is dragged
          */
         function rightClick(node) {
 
@@ -1801,7 +1869,7 @@
         /**
          * Event listener for dragging nodes during the positioning stage.
          *
-         * @param object node The node that is dragged
+         * @param {object} node - The node that is dragged
          */
         function dragstarted(node) {
 
@@ -1817,7 +1885,7 @@
         /**
          * Event listener for dragging nodes during positioning stage.
          *
-         * @param object node The node that is dragged
+         * @param {object} node - The node that is dragged
          */
         function dragged(node) {
 
@@ -1834,7 +1902,7 @@
         /**
          * Event listener for dragging nodes.
          *
-         * @param object node The node that is dragged
+         * @param {object} node - The node that is dragged
          */
         function dragended(node) {
 
@@ -1879,11 +1947,11 @@
             studentMenu = document.createElement('select');
             studentMenu.multiple = true;
             studentMenu.id = 'student-select';
-            menuHeight = height - cbHeight - 12;
+            var menuHeight = height - cbHeight - 12;
             studentMenu.style = 'height: ' + menuHeight + 'px;';
 
             // Shade menu item when selected.
-            studentMenu.addEventListener('change', function(ce) {
+            studentMenu.addEventListener('change', function() {
 
                 var sel = document.getElementById('student-select');
                 var normal = 'box-shadow: 0 0 0 0 white inset;';
@@ -1894,7 +1962,7 @@
                     sel.options[i].style = sel.options[i].selected ? shade : normal;
                 }
                 if (logs.length > 0) {
-                    drawGraphNew();
+                    drawGraphNew(true);
                 }
             });
 
@@ -1909,8 +1977,8 @@
         /**
          * Adds an item to the student select menu used in the graphing stage.
          *
-         * @param object user The student info
-         * @param DOM element menu The parent to append to
+         * @param {object} user - The student info
+         * @param {HTMLElement} menu - The parent to append to
          */
         function addListItem(user, menu) {
 
@@ -1941,10 +2009,18 @@
             timeSlider = document.getElementById('slider');
             sliderValues = [0, graphData.maxSession];
 
-            var divider = graphData.maxSession < 500 ? 10 :
-                graphData.maxSession < 1000 ? 20 :
-                graphData.maxSession < 5000 ? 100 :
-                graphData.maxSession < 10000 ? 200 : 500;
+            var divider;
+            if (graphData.maxSession < 500) {
+                divider = 10;
+            } else if (graphData.maxSession < 1000) {
+                divider = 20;
+            } else if (graphData.maxSession < 5000) {
+                divider = 100;
+            } else if (graphData.maxSession < 10000) {
+                divider = 200;
+            } else {
+                divider = 500;
+            }
 
             slider.create(timeSlider, {
                 start: [0, graphData.maxSession],
@@ -1958,9 +2034,15 @@
                     mode: 'steps',
                     stepped: true,
                     density: 100,
-                    filter: function(n) { return n == 0 ? 1 :
-                                          n == graphData.maxSession ? 1 :
-                                          n % divider == 0 ? 2 : 0; },
+                    filter: function(n) {
+                        if (n == 0 || n == graphData.maxSession) {
+                            return 1;
+                        } else if (n % divider == 0) {
+                            return 2;
+                        } else {
+                            return 0;
+                        }
+                    },
                 }
             });
 
@@ -2002,9 +2084,9 @@
         /**
          * Function to draw the behaviour graph during the graphing stage.
          *
-         * @param boolean doHulls Draw the polygon hulls or not
+         * @param {boolean} doHulls - Draw the polygon hulls or not
          */
-        function drawGraphNew(doHulls = true) {
+        function drawGraphNew(doHulls) {
 
             graphLinks.remove();
             graphNodes.remove();
@@ -2029,12 +2111,13 @@
         /**
          * Function to change the nodes used in the graph. Called when the graph is redrawn.
          *
-         * @param function rclick Right click function to assign to the nodes
-         * @returns array
+         * @param {function} rclick - Right click function to assign to the nodes
+         * @returns {array}
          */
         function doNodes(rclick) {
 
-            var nodes = [], notNodes = {};
+            var nodes = [],
+                notNodes = {};
 
             graphData.nodes.forEach(function(dn) {
 
@@ -2063,14 +2146,18 @@
         /**
          * Function to change the links used in the graph. Called when the graph is redrawn.
          *
-         * @param array notNodes The invisible nodes
+         * @param {array} notNodes - The invisible nodes
          */
         function doLinks(notNodes) {
 
-            // The background links that hold the sections together.
-            var links = [], sid, tid, dl;
+            var links = [], // Background links that hold sections together.
+                sid, // Source node id.
+                tid, // Target node id.
+                dl, // Data link.
+                sl, // Student link.
+                i; // Loop variable.
 
-            for (var i in graphData.links) {
+            for (i in graphData.links) {
                 dl = graphData.links[i];
 
                 // Get source/target id.
@@ -2093,20 +2180,22 @@
             var options = positioning ? [] : document.getElementById('student-select').options;
 
             // For any students who are checked.
-            for (var i = 0; i < options.length; i++) {
+            for (i = 0; i < options.length; i++) {
 
                 if (options[i].selected) {
 
-                    // Node id, source id, target id, object.
-                    var id, sid, tid, ob = {};
+                    // Node id, object.
+                    var id,
+                        ob = {},
+                        j;
 
                     // Add student links to link set.
-                    for (var j = sliderValues[0]; j <= sliderValues[1]; j++) {
+                    for (j = sliderValues[0]; j <= sliderValues[1]; j++) {
 
                         // Are we including the links for this slider value?.
                         if (graphData.edges[options[i].value].length > j) {
 
-                            var sl = graphData.edges[options[i].value][j];
+                            sl = graphData.edges[options[i].value][j];
 
                             // Get source/target id.
                             if (typeof sl.source == 'string') {
@@ -2137,12 +2226,12 @@
                     }
 
                     // Weight the links.
-                    for (var j = sliderValues[0]; j <= sliderValues[1]; j++) {
+                    for (j = sliderValues[0]; j <= sliderValues[1]; j++) {
 
                         // Are we including the links for this slider value?
                         if (graphData.edges[options[i].value].length > j) {
 
-                            var sl = graphData.edges[options[i].value][j];
+                            sl = graphData.edges[options[i].value][j];
 
                             // Get source/target id.
                             if (typeof sl.source == 'string') {
@@ -2163,9 +2252,25 @@
         }
 
         /**
+         * Called to check equality. Could not make anonymous function within
+         * loop as this caused an error with eslint.
+         *
+         * @param {number} id - The source or target node id
+         * @return {object} node - The matching graph node
+         */
+        function getEqualToNode(id) {
+
+            var node = graphData.nodes.find(function(n) {
+                return n.id == id;
+            });
+
+            return node;
+        }
+
+        /**
          * Called to render the hulls. Hulls get made around student links during graphing.
          *
-         * @param array notNodes The invisible nodes
+         * @param {array} notNodes - The invisible nodes
          */
         function makePolygonHulls(notNodes) {
 
@@ -2181,8 +2286,8 @@
             for (var i = 0; i < options.length; i++) {
                 if (options[i].selected) {
 
-                    // SourceNodeX/Y, targetNodeX/Y, linkColour.
-                    var snx, sny, tnx, tny, lc, indx = 0;
+                    // SourceNodeX/Y, targetNodeX/Y, linkColour, sourceId, targetId.
+                    var snx, sny, tnx, tny, lc, sid, tid;
                     nodeGroups[options[i].value] = {};
 
                     // Add student links to link set.
@@ -2198,16 +2303,12 @@
                                 sid = sl.source;
                                 tid = sl.target;
 
-                                var nd = graphData.nodes.find(function(n) {
-                                    return n.id == sid;
-                                });
+                                var nd = getEqualToNode(sid);
 
                                 snx = nd.x;
                                 sny = nd.y;
 
-                                nd = graphData.nodes.find(function(n) {
-                                    return n.id == tid;
-                                });
+                                nd = getEqualToNode(tid);
 
                                 tnx = nd.x;
                                 tny = nd.y;
@@ -2227,8 +2328,8 @@
                                 continue;
                             } else {
                                 lc = sl.colour;
-                                nodeGroups[options[i].value][sid] = { x: snx, y: sny, colour: lc };
-                                nodeGroups[options[i].value][tid] = { x: tnx, y: tny, colour: lc };
+                                nodeGroups[options[i].value][sid] = {x: snx, y: sny, colour: lc};
+                                nodeGroups[options[i].value][tid] = {x: tnx, y: tny, colour: lc};
                             }
                         } else {
                             // Slider value greater than number of links, move on.
@@ -2240,10 +2341,10 @@
 
             // Make the actual hulls.
             for (var key in nodeGroups) {
-                makePolygonHull(nodeGroups[key], key);
+                makePolygonHull(nodeGroups[key], key, false, false);
             }
             if (graphing) {
-                var options = document.getElementById('student-select').options;
+                options = document.getElementById('student-select').options;
                 if (useGeometricCentroids) {
                     getGeometricCentroids(options);
                 } else {
@@ -2257,7 +2358,7 @@
          * decomposition is used to determine the centroid where the student
          * graph is considered linear, so has no loops.
          *
-         * @param array options The array of student menu items
+         * @param {array} options - The array of student menu items
          */
         function getDecomposedCentroids(options) {
 
@@ -2290,8 +2391,6 @@
                     hullCentroids[student] = {
                         x: xcoord * coordsScale + coordsData.originalx,
                         y: ycoord * coordsScale + coordsData.originaly,
-                        //x: xcoord * coordsScale + width / 2,
-                        //y: ycoord * coordsScale + height / 2,
                         colour: options[i].colour
                     };
                 }
@@ -2303,7 +2402,7 @@
          * geometric centroid is calculated from the student click data where
          * each visible, clicked node is used.
          *
-         * @param array options The array of student menu items
+         * @param {array} options - The array of student menu items
          */
         function getGeometricCentroids(options) {
 
@@ -2322,7 +2421,10 @@
                     // Consider only relevant time slider values.
                     var start = sliderValues[0];
                     var end = clickData[student].length > sliderValues[1] + 1 ? sliderValues[1] : clickData[student].length;
-                    var tx = 0, ty = 0, n = 0; // Total x, total y, and counter.
+                    // Total x, total y, and counter.
+                    var tx = 0,
+                        ty = 0,
+                        n = 0;
 
                     // Sum the clicked nodes.
                     for (var j = start, mid; j < end; j++) {
@@ -2336,8 +2438,6 @@
                     hullCentroids[student] = {
                         x: (tx / n) * coordsScale + coordsData.originalx,
                         y: (ty / n) * coordsScale + coordsData.originaly,
-                        //x: (tx / n) * coordsScale + width / 2,
-                        //y: (ty / n) * coordsScale + height / 2,
                         colour: options[i].colour
                     };
                 }
@@ -2350,31 +2450,41 @@
          * and https://bl.ocks.org/XavierGimenez/a8e8c5e9aed71ba96bd52332682c0399
          * and https://bl.ocks.org/pbellon/d397cbdfc596f1724860b60a1d41be43.
          *
-         * @param object group The group of points
-         * @param number key The student id
-         * @param boolean manualHull Is the hull for a manual cluster?
-         * @param boolean useTrans Are the hulls to be transitioned?
+         * @param {object} group - The group of points
+         * @param {number} key - The student id
+         * @param {boolean} manualHull - Is the hull for a manual cluster?
+         * @param {boolean} useTrans - Are the hulls to be transitioned?
          */
-        function makePolygonHull(group, key, manualHull = false, useTrans = false) {
+        function makePolygonHull(group, key, manualHull, useTrans) {
 
             // No points in group, nothing to hull around.
             if (Object.keys(group).length == 0) {
                 return;
             }
-            var coords = [], colour, lf, hullPadding = 20,
-                hullClass = graphing ? 'hull' :
-                manualHull ? 'manual-hull' : 'cluster-hull';
+            var coords = [],
+                colour,
+                lf, // Line function.
+                hullPadding = 20,
+                hullClass;
+
+            if (graphing) {
+                hullClass = 'hull';
+            } else if (manualHull) {
+                hullClass = 'manual-hull';
+            } else {
+                hullClass = 'cluster-hull';
+            }
 
             // Put point into array.
             for (var k in group) {
-                coords[coords.length] = [ group[k].x, group[k].y ];
+                coords[coords.length] = [group[k].x, group[k].y];
                 colour = group[k].colour;
             }
 
             // Only 1 point?
             if (coords.length == 1) {
 
-                lf = function (polyPoints) {
+                lf = function(polyPoints) {
                     // Returns the path for a circular hull around a single point.
 
                     var p1 = [polyPoints[0][0], polyPoints[0][1] - hullPadding];
@@ -2388,60 +2498,60 @@
                 // Only 2 points?
 
                 // Vector from p0 to p1.
-                var vecFrom = function (p0, p1) {
-                    return [ p1[0] - p0[0], p1[1] - p0[1] ];
-                }
-
-                // Vector v scaled by 'scale'.
-                var vecScale = function (v, scale) {
-                    return [ scale * v[0], scale * v[1] ];
-                }
-
-                // The sum of two points/vectors.
-                var vecSum = function (pv1, pv2) {
-                    return [ pv1[0] + pv2[0], pv1[1] + pv2[1] ];
-                }
-
-                // Vector with direction of v and length 1.
-                var vecUnit = function (v) {
-                    var norm = Math.sqrt (v[0] * v[0] + v[1] * v[1]);
-                    return vecScale (v, 1 / norm);
-                }
-
-                // Vector with direction of v with specified length.
-                var vecScaleTo = function (v, length) {
-                    return vecScale (vecUnit(v), length);
-                }
-
-                // Unit normal to vector pv0, or line segment from p0 to p1.
-                var unitNormal = function (pv0, p1) {
-                    if (p1 != null) {
-                        pv0 = vecFrom (pv0, p1);
-                    }
-                    var normalVec = [ -pv0[1], pv0[0] ];
-                    return vecUnit (normalVec);
+                var vecFrom = function(p0, p1) {
+                    return [p1[0] - p0[0], p1[1] - p0[1]];
                 };
 
-                lf = function (polyPoints) {
+                // Vector v scaled by 'scale'.
+                var vecScale = function(v, scale) {
+                    return [scale * v[0], scale * v[1]];
+                };
+
+                // The sum of two points/vectors.
+                var vecSum = function(pv1, pv2) {
+                    return [pv1[0] + pv2[0], pv1[1] + pv2[1]];
+                };
+
+                // Vector with direction of v and length 1.
+                var vecUnit = function(v) {
+                    var norm = Math.sqrt(v[0] * v[0] + v[1] * v[1]);
+                    return vecScale(v, 1 / norm);
+                };
+
+                // Vector with direction of v with specified length.
+                var vecScaleTo = function(v, length) {
+                    return vecScale(vecUnit(v), length);
+                };
+
+                // Unit normal to vector pv0, or line segment from p0 to p1.
+                var unitNormal = function(pv0, p1) {
+                    if (p1 !== undefined) {
+                        pv0 = vecFrom(pv0, p1);
+                    }
+                    var normalVec = [-pv0[1], pv0[0]];
+                    return vecUnit(normalVec);
+                };
+
+                lf = function(polyPoints) {
                     // Returns the path for a rounded hull around two points.
 
-                    var v = vecFrom (polyPoints[0], polyPoints[1]);
+                    var v = vecFrom(polyPoints[0], polyPoints[1]);
                     var extensionVec = vecScaleTo(v, hullPadding);
 
-                    var extension0 = vecSum (polyPoints[0], vecScale(extensionVec, -1));
-                    var extension1 = vecSum (polyPoints[1], extensionVec);
+                    var extension0 = vecSum(polyPoints[0], vecScale(extensionVec, -1));
+                    var extension1 = vecSum(polyPoints[1], extensionVec);
 
                     var tangentHalfLength = 1.2 * hullPadding;
-                    var controlDelta    = vecScaleTo (unitNormal(v), tangentHalfLength);
-                    var invControlDelta = vecScale (controlDelta, -1);
+                    var controlDelta = vecScaleTo(unitNormal(v), tangentHalfLength);
+                    var invControlDelta = vecScale(controlDelta, -1);
 
-                    var control0 = vecSum (extension0, invControlDelta);
-                    var control1 = vecSum (extension1, invControlDelta);
-                    var control3 = vecSum (extension0, controlDelta);
+                    var control0 = vecSum(extension0, invControlDelta);
+                    var control1 = vecSum(extension1, invControlDelta);
+                    var control3 = vecSum(extension0, controlDelta);
 
                     return 'M ' + extension0
                         + ' C ' + [control0, control1, extension1].join(',')
-                        + ' S ' + [          control3, extension0].join(',')
+                        + ' S ' + [control3, extension0].join(',')
                         + ' Z';
                 };
             } else {
@@ -2452,7 +2562,7 @@
                     hull.distance(concaveHullDistance);
                 }
 
-                var pgh = coords.length > 4 ? hull(coords) : [ coords ];
+                var pgh = coords.length > 4 ? hull(coords) : [coords];
                 lf = ddd.line().curve(curveType);
 
                 // Draw the polygon.
@@ -2518,7 +2628,7 @@
             graphNodes.style('opacity', 1.0);
             graphLinks.style('display', 'block');
             graphLinks.style('opacity', 1.0);
-            drawGraphNew();
+            drawGraphNew(true);
             graphNodes.on('mouseover', mouseover)
                 .on('mouseout', mouseout);
 
@@ -2605,13 +2715,13 @@
         /**
          * Called to do the clustering replay stage.
          *
-         * @param array data The replay data from the server.
-         * @param array manData The manual replay data from the server.
+         * @param {array} data - The replay data from the server.
+         * @param {array} manData - The manual replay data from the server.
          */
         function doClusterReplay(data, manData) {
 
             positioning = true;
-            presetNodes = {0:0,1:1,2:2};
+            presetNodes = {'0': 0, '1': 1, '2': 2};
             height = window.innerHeight - 190;
 
             makeReplayControls();
@@ -2622,7 +2732,8 @@
         /**
          * Called to make the clustering run menu for the replay stage.
          *
-         * @param array data The replay data from the server.
+         * @param {array} data - The replay data from the server.
+         * @param {array} manData - The manual clustering data.
          */
         function makeReplayMenu(data, manData) {
 
@@ -2642,12 +2753,12 @@
                     i++;
                     for (var clusterid in data[datasetid][coordid]) {
 
-                        if (! isNaN(clusterid) &&
+                        if (!isNaN(clusterid) &&
                             data[datasetid][coordid][clusterid][1]) {
 
                             var o = document.createElement('option');
                             o.value = datasetid + '_' + coordid + '_' + clusterid;
-                            o.text  = datasetid.split('-')[0] + '_' + i + '_' + (++j);
+                            o.text = datasetid.split('-')[0] + '_' + i + '_' + (++j);
                             replayMenu.appendChild(o);
                         }
                     }
@@ -2659,8 +2770,8 @@
         /**
          * Called to display the initial graph for the replay stage.
          *
-         * @param array data The replay data from the server.
-         * @param array manData The manual replay data from the server.
+         * @param {array} data - The replay data from the server.
+         * @param {array} manData - The manual replay data from the server.
          */
         function replayGraph(data, manData) {
 
@@ -2692,14 +2803,14 @@
             fakeStudentMenu(members);
 
             // Draw the graph.
-            initGraph();
+            initGraph(0);
             drawGraphNew(false);
             graphNodes.on('mouseover', null).on('mouseout', null);
             noCentroidMouse = true;
 
             // Draw the user centroids.
             setTimeout(function() {
-                forwardScale(hullCentroids);
+                forwardScale(hullCentroids, false);
                 drawCentroids();
                 simulation.on('tick', tick1);
 
@@ -2718,7 +2829,7 @@
          * Event listener for dragging student centroids during replay.
          * Draws a temporary student centroid for dragging.
          *
-         * @param number studentKey The student id.
+         * @param {number} studentKey - The student id.
          */
         function replayCentroidDragStart(studentKey) {
 
@@ -2742,7 +2853,7 @@
          * Event listener for dragging student centroids during replay.
          * Moves a student centroid with the mouse.
          *
-         * @param number studentKey The student id.
+         * @param {number} studentKey - The student id.
          */
         function replayCentroidDrag(studentKey) {
 
@@ -2754,9 +2865,9 @@
          * Event listener for dragging student centroids during replay.
          * Reclusters students, draws hulls and clustering centroids.
          *
-         * @param number studentKey The student id.
-         * @param array manData Manual clustering data from server.
-         * @param object ids The dataset, graph configuration, and cluster ids.
+         * @param {number} studentKey - The student id.
+         * @param {array} manData - Manual clustering data from server.
+         * @param {object} ids - The dataset, graph configuration, and cluster ids.
          */
         function replayCentroidDragEnd(studentKey, manData, ids) {
 
@@ -2784,9 +2895,9 @@
             // current iteration.
             if (Object.keys(manualClusters[currentIter]).length == 0) {
                 for (var i = 0; i < replayData[currentIter].length; i++) {
-                    for (var member in replayData[currentIter][i]['members']) {
+                    for (var member in replayData[currentIter][i].members) {
 
-                        var id = anonUserIds[replayData[currentIter][i]['members'][member]['id']];
+                        var id = anonUserIds[replayData[currentIter][i].members[member].id];
                         manualClusters[currentIter][id] = i;
                     }
                 }
@@ -2813,11 +2924,11 @@
         /**
          * Function called to send the manual clustering data to the server.
          *
-         * @param number currentIter The current iteration value.
+         * @param {number} currentIter - The current iteration value.
          */
         function sendManualClustersToServer(currentIter) {
 
-            var out = { clusterCoords: [], members: [] };
+            var out = {clusterCoords: [], members: []};
             for (var i = 0; i < manualCentroids.length; i++) {
 
                 // Get the reversed centroid coordinate.
@@ -2839,7 +2950,7 @@
 
             out.iteration = currentIter;
             out.clusterId = coordsData.clusterId;
-            out.coordsid  = lastChange;
+            out.coordsid = lastChange;
 
             callServer(manualScript, out);
         }
@@ -2847,7 +2958,7 @@
         /**
          * Log the manual clustering results to the log panel.
          *
-         * @param number iter The clustering iteration number
+         * @param {number} iter - The clustering iteration number
          */
         function logManualClusteringResults(iter) {
 
@@ -2863,15 +2974,16 @@
 
             // Get centroid from coordinates, then determine distance to
             // cluster and membership.
-            for (var i = 0; i < manualCentroids.length; i++) {
+            var i;
+            for (i = 0; i < manualCentroids.length; i++) {
 
-                if (! manualCentroids[i]) {
+                if (!manualCentroids[i]) {
                     continue;
                 }
 
-                dx = manualCentroids[i].x - width / 2;
-                dy = manualCentroids[i].y - height / 2;
-                d = Math.sqrt(dx * dx + dy * dy);
+                var dx = manualCentroids[i].x - width / 2;
+                var dy = manualCentroids[i].y - height / 2;
+                var d = Math.sqrt(dx * dx + dy * dy);
 
                 // Add distance to cluster.
                 lpt += langStrings.disttocluster + ' ' + i + ': ' +
@@ -2906,7 +3018,7 @@
             logPanel.value = '';
 
             // Remove previous manual clustering results, but keep k-means.
-            for (var i = 0; i < lpv0.length; i++) {
+            for (i = 0; i < lpv0.length; i++) {
                 if (lpv0[i].startsWith(langStrings.manualcluster)) {
                     break;
                 }
@@ -2917,7 +3029,7 @@
 
             // Log total clustering measures for researchers.
             if (isResearcher) {
-                var i = measures.length - 1;
+                i = measures.length - 1;
                 lpt += langStrings.totalmeasures + '\n';
                 lpt += langStrings.precision + ': ' + measures[i].precision.toFixed(4) + '\n';
                 lpt += langStrings.recall + ': ' + measures[i].recall.toFixed(4) + '\n';
@@ -2929,7 +3041,7 @@
             logPanel.value += lpt + '\n';
 
             // Add back all previous results.
-            for (var i = 1; i < lpv.length; i++) {
+            for (i = 1; i < lpv.length; i++) {
                 logPanel.value += lpv[i] + '\n\n';
             }
         }
@@ -2939,17 +3051,21 @@
          * Precision, recall, and F measure formulas taken from
          * https://nlp.stanford.edu/IR-book/html/htmledition/evaluation-of-unranked-retrieval-sets-1.html
          *
-         * @param number iter The current iteration value.
+         * @param {number} iter - The current iteration value.
+         * @return {array} results - The results of the clustering.
          */
         function getClusterMeasures(iter) {
 
-            var truePositives  = 0,
+            var truePositives = 0,
                 falsePositives = 0,
                 falseNegatives = 0,
-                results = [];
+                results = [],
+                p, // Precision.
+                r, // Recall.
+                i; // Loop variable.
 
             // Calculate the precision, recall, and F measures for each cluster.
-            for (var i = 0; i < centroids.length; i++) {
+            for (i = 0; i < centroids.length; i++) {
                 for (var student in scaledCentroids) {
 
                     if (scaledCentroids[student].ci == i &&
@@ -2967,8 +3083,8 @@
                     }
                 }
 
-                var p = truePositives / (truePositives + falsePositives);
-                var r = truePositives / (truePositives + falseNegatives);
+                p = truePositives / (truePositives + falsePositives);
+                r = truePositives / (truePositives + falseNegatives);
 
                 results[i] = {
                     tp: truePositives,
@@ -2981,14 +3097,14 @@
                     f2: p + r == 0 ? 0 : (5.0 * p * r) / ((4.0 * p) + r),
                 };
 
-                truePositives  = 0;
+                truePositives = 0;
                 falsePositives = 0;
                 falseNegatives = 0;
             }
 
             // Calculate measures for all clusters combined.
-            for (var i = 0; i < results.length; i++) {
-                truePositives  += results[i].tp;
+            for (i = 0; i < results.length; i++) {
+                truePositives += results[i].tp;
                 falsePositives += results[i].fp;
                 falseNegatives += results[i].fn;
             }
@@ -3013,8 +3129,8 @@
         /**
          * Called to test if it is okay to drag student centroids during replay.
          *
-         * @param number studentKey The student id value.
-         * @return boolean
+         * @param {number} studentKey - The student id value.
+         * @return {boolean}
          */
         function canDragReplayCentroid(studentKey) {
 
@@ -3029,8 +3145,9 @@
             // ...And not if the student is the only member of the cluster.
             // Count k-means cluster members.
             var clusterNum = scaledCentroids[studentKey].ci;
-            var members = 0;
-            for (var student in scaledCentroids) {
+            var members = 0,
+                student;
+            for (student in scaledCentroids) {
                 if (scaledCentroids[student].ci == clusterNum) {
                     members++;
                 }
@@ -3040,7 +3157,7 @@
             var manMembers = 0;
             if (manualClusters[iter]) {
                 clusterNum = manualClusters[iter][studentKey];
-                for (var student in manualClusters[iter]) {
+                for (student in manualClusters[iter]) {
                     if (manualClusters[iter][student] == clusterNum) {
                         manMembers++;
                     }
@@ -3059,7 +3176,7 @@
         /**
          * Called to pull the current iteration value from the log panel.
          *
-         * @return number
+         * @return {number}
          */
         function getCurrentIteration() {
 
@@ -3083,9 +3200,9 @@
                 }
                 manualClusters[iter] = {};
                 for (var i = 0; i < replayData[iter].length; i++) {
-                    for (var member in replayData[iter][i]['members']) {
+                    for (var member in replayData[iter][i].members) {
 
-                        var id = anonUserIds[replayData[iter][i]['members'][member]['id']];
+                        var id = anonUserIds[replayData[iter][i].members[member].id];
                         manualClusters[iter][id] = i;
                     }
                 }
@@ -3095,26 +3212,30 @@
         /**
          * Called to render the centroids and hulls for manual clustering results.
          *
-         * @param number currentIter The current iteration value.
-         * @param array manData The manual clustering data from server.
-         * @param object ids The dataset, graph configuration, and clustering ids.
+         * @param {number} currentIter - The current iteration value.
+         * @param {array} manData - The manual clustering data from server.
+         * @param {object} ids - The dataset, graph configuration, and clustering ids.
          */
         function drawManualClusters(currentIter, manData, ids) {
 
             // Get data for hulls and centroids.
-            var hulls = [], points = [];
-            for (var i = 0; i < replayData[currentIter].length; i++) {
+            var hulls = [],
+                points = [],
+                i,
+                student;
+
+            for (i = 0; i < replayData[currentIter].length; i++) {
                 hulls[i] = {};
                 points[i] = [];
 
-                for (var student in manualClusters[currentIter]) {
+                for (student in manualClusters[currentIter]) {
                     if (manualClusters[currentIter][student] == i) {
 
                         var x = scaledCentroids[student].x;
                         var y = scaledCentroids[student].y;
 
-                        hulls[i][x + '_' + y] = { x: x, y: y, colour: centroids[i].colour };
-                        points[i][points[i].length] = [ x, y ];
+                        hulls[i][x + '_' + y] = {x: x, y: y, colour: centroids[i].colour};
+                        points[i][points[i].length] = [x, y];
                     }
                 }
             }
@@ -3125,7 +3246,7 @@
 
             // Make the polygon hulls and get new centroids.
             ddd.selectAll('.manual-hull').remove();
-            for (var i = 0; i < hulls.length; i++) {
+            for (i = 0; i < hulls.length; i++) {
                 makePolygonHull(hulls[i], (i + 1) * -1, true, noManualCentroids);
                 manualCentroids[i] = getClusteringCentroid(points[i]);
             }
@@ -3138,23 +3259,23 @@
                     manData[ids.did] = {};
                 }
                 if (!manData[ids.did][ids.gid]) {
-                    manData[ids.did][ids.gid] = {}
+                    manData[ids.did][ids.gid] = {};
                 }
                 if (!manData[ids.did][ids.gid][ids.cid]) {
-                    manData[ids.did][ids.gid][ids.cid] = {}
+                    manData[ids.did][ids.gid][ids.cid] = {};
                 }
                 if (!manData[ids.did][ids.gid][ids.cid][currentIter]) {
                     manData[ids.did][ids.gid][ids.cid][currentIter] = [];
                 }
 
                 // Build membership data.
-                for (var i = 0; i < manualCentroids.length; i++) {
+                for (i = 0; i < manualCentroids.length; i++) {
                     if (!manualCentroids[i]) {
                         continue;
                     }
                     var members = [];
 
-                    for (var student in manualClusters[currentIter]) {
+                    for (student in manualClusters[currentIter]) {
                         if (manualClusters[currentIter][student] == i) {
 
                             members[members.length] = {
@@ -3186,6 +3307,14 @@
         }
 
         /**
+         * Function to stop event propagation.
+         */
+        function stopProp() {
+
+            ddd.event.stopPropagation();
+        }
+
+        /**
          * Draws the cluster centroid points during manual clustering during replay.
          */
         function drawManualCentroids() {
@@ -3212,7 +3341,7 @@
                     .style('stroke', centroids[i].colour)
                     .style('stroke-width', '5px')
                     .style('opacity', 0)
-                    .on('click', function() { ddd.event.stopPropagation(); })
+                    .on('click', stopProp)
                     .on('click.centroidClick', centroidClick.bind(this, (i + 1) * -1, i, true))
                     .on('mouseover', clusteroidMouseover.bind(this, i, true));
 
@@ -3226,7 +3355,7 @@
                     .style('stroke', centroids[i].colour)
                     .style('stroke-width', '5px')
                     .style('opacity', 0)
-                    .on('click', function() { ddd.event.stopPropagation(); })
+                    .on('click', stopProp)
                     .on('click.centroidClick', centroidClick.bind(this, (i + 1) * -1, i, true))
                     .on('mouseover', clusteroidMouseover.bind(this, i, true));
             }
@@ -3274,7 +3403,7 @@
         /**
          * Called to change manual clustering when user changes replay iteration.
          *
-         * @param number currentIter The current iteration value
+         * @param {number} currentIter - The current iteration value
          */
         function updateManualClusters(currentIter) {
 
@@ -3296,37 +3425,38 @@
         /**
          * Called to change over/reset some global data for the next replay.
          *
-         * @param array data The replay data from the server.
-         * @param array manData The manual clustering data from the server.
-         * @return object
+         * @param {array} data - The replay data from the server.
+         * @param {array} manData - The manual clustering data from the server.
+         * @return {object} - The new replay data.
          */
         function changeReplayData(data, manData) {
 
             // Figure out which dataset is selected.
             var sel = document.getElementById('replay-select');
-            var keys;
+            var keys,
+                i;
 
-            for (var i = 0; i < sel.options.length; i++) {
+            for (i = 0; i < sel.options.length; i++) {
                 if (sel.options[i].selected) {
                     keys = sel.options[i].value.split('_');
                     break;
                 }
             }
             var datasetid = keys[0];
-            var coordsid  = keys[1];
+            var coordsid = keys[1];
             var clusterid = keys[2];
 
             // Change the global data.
             replayUserId = datasetid.split('-')[0];
             coordsData.clusterId = clusterid;
-            lastChange  = data[datasetid][coordsid]['last'];
-            presetNodes = data[datasetid][coordsid]['nodes'];
-            coordsScale = data[datasetid][coordsid]['scale'];
-            modules     = data[datasetid][coordsid]['mods'];
-            replayData  = data[datasetid][coordsid][clusterid];
-            logs        = data[datasetid][coordsid]['logs'];
-            users       = data[datasetid][coordsid]['users'];
-            comments    = data[datasetid][coordsid][clusterid]['comments'];
+            lastChange = data[datasetid][coordsid].last;
+            presetNodes = data[datasetid][coordsid].nodes;
+            coordsScale = data[datasetid][coordsid].scale;
+            modules = data[datasetid][coordsid].mods;
+            replayData = data[datasetid][coordsid][clusterid];
+            logs = data[datasetid][coordsid].logs;
+            users = data[datasetid][coordsid].users;
+            comments = data[datasetid][coordsid][clusterid].comments;
 
             // Create map for anonymized id to real id.
             anonUserIds = {};
@@ -3340,7 +3470,8 @@
             clusterSliderValue = 1;
 
             // Get max positive and negative iteration values.
-            positiveIters = 0, negativeIters = 0;
+            positiveIters = 0;
+            negativeIters = 0;
             for (var key in replayData) {
                 if (isNaN(key)) {
                     continue;
@@ -3353,25 +3484,27 @@
 
             // Reset manual clustering variables.
             manualCentroids = [];
-            manualClusters  = {};
+            manualClusters = {};
             haveManualClustering = false;
-            var manualData = manData[datasetid][coordsid][clusterid];
+            var manualData = manData[datasetid][coordsid][clusterid],
+                clusternum,
+                member;
 
             if (manualData) {
                 haveManualClustering = true;
 
                 // Ensure manual clustering data available for all iterations.
-                for (var i = -1; i >= negativeIters; i--) {
-                    if (manualData[i] && ! manualData[i - 1]) {
+                for (i = -1; i >= negativeIters; i--) {
+                    if (manualData[i] && !manualData[i - 1]) {
                         manualData[i - 1] = manualData[i];
                     }
 
                     manualClusters[i] = {};
 
-                    for (var clusternum in manualData[i]) {
-                        for (var member in manualData[i][clusternum]['members']) {
+                    for (clusternum in manualData[i]) {
+                        for (member in manualData[i][clusternum].members) {
 
-                            var id = manualData[i][clusternum]['members'][member]['id'];
+                            var id = manualData[i][clusternum].members[member].id;
                             manualClusters[i][anonUserIds[id]] = clusternum;
                         }
                     }
@@ -3379,15 +3512,15 @@
             }
 
             // Make the centroids.
-            replayScales = {};
             centroids = [];
             hullCentroids = {};
-            var ob = {}, ci = 0;
+            var ob = {},
+                ci = 0;
 
-            for (var clusternum in replayData[1]) {
+            for (clusternum in replayData[1]) {
                 // Clustering centroids.
-                var i = centroids.length;
-                centroids[i] = { x: 0, y: 0 };
+                i = centroids.length;
+                centroids[i] = {x: 0, y: 0};
 
                 if (ci < centroidColours.length) {
                     centroids[i].colour = centroidColours[ci++];
@@ -3401,25 +3534,25 @@
                 }
 
                 // User centroids.
-                for (var member in replayData[1][clusternum]['members']) {
+                for (member in replayData[1][clusternum].members) {
 
-                    var anonId = anonUserIds[replayData[1][clusternum]['members'][member]['id']];
+                    var anonId = anonUserIds[replayData[1][clusternum].members[member].id];
                     hullCentroids[anonId] = {
-                        x: replayData[1][clusternum]['members'][member]['x'],
-                        y: replayData[1][clusternum]['members'][member]['y']
+                        x: replayData[1][clusternum].members[member].x,
+                        y: replayData[1][clusternum].members[member].y
                     };
                     ob[anonId] = true;
                 }
             }
 
-            return { members: ob, did: datasetid, gid: coordsid, cid: clusterid };
+            return {members: ob, did: datasetid, gid: coordsid, cid: clusterid};
         }
 
         /**
          * Called to make a student menu for the replay stage. The menu's values
          * are needed, but the menu is not visible.
          *
-         * @param object members A group of userids who are members of a cluster
+         * @param {object} members - A group of userids who are members of a cluster
          */
         function fakeStudentMenu(members) {
 
@@ -3458,10 +3591,10 @@
          * Called to scale normalized server coordinate values back into
          * graphing and/or clustering space.
          *
-         * @param array/object coords The group of coordinates to scale
-         * @param boolean clusterScaling Scale to clustering space as well?
+         * @param {(array|object)} coords - The group of coordinates to scale
+         * @param {boolean} clusterScaling - Scale to clustering space as well?
          */
-        function forwardScale(coords, clusterScaling = false) {
+        function forwardScale(coords, clusterScaling) {
 
             for (var key in coords) {
                 // Scale to graphing space.
@@ -3524,7 +3657,7 @@
             var playStep2 = document.createElement('button');
             playStep2.id = 'replay-forward';
             playStep2.innerHTML = '&#9654&nbsp&nbsp&#9614';
-            playStep2.addEventListener('click', replayForward);
+            playStep2.addEventListener('click', replayForward.bind(this, true));
             ctrlDiv.appendChild(playStep2);
         }
 
@@ -3582,7 +3715,7 @@
         function replayPause() {
 
             // Trying to play without selecting a clustering run.
-            if (! replayData) {
+            if (!replayData) {
                 return;
             }
             var button = document.getElementById('replay-pause');
@@ -3593,9 +3726,9 @@
                 button.value = 'pause';
                 replayForward(false);
                 clusterAnimInterval = setInterval(replayForward.bind(this, false), 1200);
-            }
-            // Paused.
-            else {
+
+            } else {
+                // Paused.
                 resetPlayButton();
             }
         }
@@ -3603,9 +3736,9 @@
         /**
          * Called to step the clustering replay forward.
          *
-         * @param boolean resetPlay Are we resetting the play button?
+         * @param {boolean} resetPlay - Are we resetting the play button?
          */
-        function replayForward(resetPlay = true) {
+        function replayForward(resetPlay) {
 
             // Trying to replay without selecting anything.
             if (!replayData) {
@@ -3624,7 +3757,7 @@
                 actualIter = positiveIters - clusterIters + 1;
 
                 // Keep from exceeding bounds.
-                if (! replayData[actualIter - 1]) {
+                if (!replayData[actualIter - 1]) {
                     clusterIters--;
                     resetPlayButton();
                     return;
@@ -3642,15 +3775,15 @@
                 clustering = true;
                 noCentroidMouse = false;
                 clusteringCase2();
-            }
-            // Next position, show random clustering centroids.
-            else if (clusterIters == 2) {
+
+            } else if (clusterIters == 2) {
+                // Next position, show random clustering centroids.
                 clusteringCase3();
                 runReplayIter(actualIter - 1, false, true);
-            }
-            // Regular, positive iteration, forward replay.
-            else {
-                runReplayIter(actualIter - 1, false);
+
+            } else {
+                // Regular, positive iteration, forward replay.
+                runReplayIter(actualIter - 1, false, false);
             }
         }
 
@@ -3682,15 +3815,14 @@
                 logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
                 document.getElementById('replayer').innerHTML = '&nbsp;';
 
-            }
-            // From second position, remove clustering centroids.
-            else if (clusterIters == 1) {
+            } else if (clusterIters == 1) {
+                // From second position, remove clustering centroids.
                 clusteringCase2();
                 logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
                 document.getElementById('replayer').innerHTML = '&nbsp;';
-            }
-            // Regular moving back with positive iteration values.
-            else {
+
+            } else {
+                // Regular moving back with positive iteration values.
                 runReplayIter(actualIter - 1, true, (clusterIters == 2));
             }
         }
@@ -3698,33 +3830,36 @@
         /**
          * Called to do a clustering replay iteration.
          *
-         * @param int iter The current iteration value
-         * @param boolean removeLog Should the log panel entry be removed
-         * @param boolean firstRound First itertation runs a bit different
+         * @param {number} iter - The current iteration value
+         * @param {boolean} removeLog - Should the log panel entry be removed
+         * @param {boolean} firstRound - First itertation runs a bit different
          */
-        function runReplayIter(iter, removeLog, firstRound = false) {
+        function runReplayIter(iter, removeLog, firstRound) {
 
-            var hulls = [], members = {};
+            var hulls = [],
+                members = {},
+                i,
+                ob = {};
 
             // For this iteration.
-            for (var i = 0, ob = {}; i < replayData[iter].length; i++, ob = {}) {
+            for (i = 0; i < replayData[iter].length; i++, ob = {}) {
                 graph.selectAll('#hull-' + i).remove();
 
                 // Make the clustering centroids.
-                centroids[i].x = replayData[iter][i]['centroidx'];
-                centroids[i].y = replayData[iter][i]['centroidy'];
+                centroids[i].x = replayData[iter][i].centroidx;
+                centroids[i].y = replayData[iter][i].centroidy;
 
                 // Get members for this cluster.
-                for (var member in replayData[iter][i]['members']) {
+                for (var member in replayData[iter][i].members) {
 
-                    var x = replayData[iter][i]['members'][member]['x'];
-                    var y = replayData[iter][i]['members'][member]['y'];
-                    var id = anonUserIds[replayData[iter][i]['members'][member]['id']];
+                    var x = replayData[iter][i].members[member].x;
+                    var y = replayData[iter][i].members[member].y;
+                    var id = anonUserIds[replayData[iter][i].members[member].id];
 
                     hullCentroids[id].x = x;
                     hullCentroids[id].y = y;
 
-                    ob[x + '_' + y] = { x: x, y: y, colour: centroids[i].colour };
+                    ob[x + '_' + y] = {x: x, y: y, colour: centroids[i].colour};
 
                     members[id] = i;
                 }
@@ -3738,12 +3873,12 @@
                 drawClusteringCentroids();
             } else {
                 // Transform member coordinates, scale to original graph.
-                forwardScale(hullCentroids);
+                forwardScale(hullCentroids, false);
 
                 // Make the polygon hulls.
-                for (var i = 0; i < hulls.length; i++) {
+                for (i = 0; i < hulls.length; i++) {
                     forwardScale(hulls[i], true);
-                    makePolygonHull(hulls[i], i);
+                    makePolygonHull(hulls[i], i, false, false);
                 }
                 // Draw clustering centroids.
                 drawAnimatedClusteringCentroids(animTime);
@@ -3759,8 +3894,7 @@
             // Write/remove clustering results to/from log panel.
             if (removeLog) {
                 logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
-            }
-            else {
+            } else {
                 for (var key in members) {
                     scaledCentroids[key].ci = members[key];
                 }
@@ -3775,7 +3909,7 @@
         /**
          * Called to make the clustering animation control buttons.
          *
-         * @return DOM element
+         * @return {HTMLElement}
          */
         function makeAnimationControls() {
 
@@ -3870,7 +4004,7 @@
          * Event listener for play/step button. Will pause a running clustering
          * animation or run a single clustering iteration.
          *
-         * @param DOM element playPause The play/pause button
+         * @param {HTMLElement} playPause - The play/pause button
          */
         function doPlayStep(playPause) {
 
@@ -3929,7 +4063,7 @@
                 if (isNaN(v) || v < 2) {
                     v = 3;
                 }
-                ob = {};
+                var ob = {};
                 for (var key in hullCentroids) {
                     ob[hullCentroids[key].x + "_" + hullCentroids[key].y] = 1;
                 }
@@ -3944,7 +4078,9 @@
                 oldCentroids = null;
 
                 // Assign random locations and colours to centroids.
-                for (var i = 0,ci = 0; i < v; i++) {
+                var i,
+                    ci;
+                for (i = 0, ci = 0; i < v; i++) {
 
                     if (ci < centroidColours.length) {
                         centroids[i] = getRandomCentroid(null, centroidColours[ci++]);
@@ -3987,9 +4123,9 @@
         /**
          * Called to get a random clustering centroid.
          *
-         * @param object ctd The old centroid point
-         * @param string col The colour of centroid
-         * @return object
+         * @param {object} ctd - The old centroid point
+         * @param {string} col - The colour of centroid
+         * @return {object}
          */
         function getRandomCentroid(ctd, col) {
 
@@ -3998,8 +4134,12 @@
             var MX = width - offset,
                 mx = offset,
                 MY = height - offset,
-                my = offset;
-            var rx, ry, dx, dy, d = 0;
+                my = offset,
+                rx,
+                ry,
+                dx,
+                dy,
+                d = 0;
 
             // If this centroid has been made before.
             if (ctd) {
@@ -4018,7 +4158,7 @@
                 ry = Math.floor(Math.random() * (MY - my) + my);
             }
 
-            return { x: rx, y: ry, colour: col };
+            return {x: rx, y: ry, colour: col};
         }
 
         /**
@@ -4027,9 +4167,12 @@
         function drawClusteringCentroids() {
 
             ddd.selectAll('.clustering-centroid').remove();
-            var o = 14;
+            var o = 14,
+                i,
+                x,
+                y;
 
-            for (var i = 0, x, y; i < centroids.length; i++) {
+            for (i = 0; i < centroids.length; i++) {
 
                 x = centroids[i].x;
                 y = centroids[i].y;
@@ -4043,9 +4186,9 @@
                     .attr('y2', y + o)
                     .style('stroke', centroids[i].colour)
                     .style('stroke-width', '5px')
-                    .on('click', function() { ddd.event.stopPropagation(); })
+                    .on('click', stopProp)
                     .on('click.centroidClick', centroidClick.bind(this, (i + 1) * -1, i, true))
-                    .on('mouseover', clusteroidMouseover.bind(this, i));
+                    .on('mouseover', clusteroidMouseover.bind(this, i, false));
 
                 graph.append('line')
                     .attr('class', 'clustering-centroid')
@@ -4056,68 +4199,33 @@
                     .attr('y2', y + o)
                     .style('stroke', centroids[i].colour)
                     .style('stroke-width', '5px')
-                    .on('click', function() { ddd.event.stopPropagation(); })
+                    .on('click', stopProp)
                     .on('click.centroidClick', centroidClick.bind(this, (i + 1) * -1, i, true))
-                    .on('mouseover', clusteroidMouseover.bind(this, i));
+                    .on('mouseover', clusteroidMouseover.bind(this, i, false));
             }
         }
 
         /**
-         * Mouse listener for the cluster centroids. This function will
-         * determine the common links among the students in a cluster and
-         * display these common links. The graph and links will remain in place
-         * so the user can preview a node. Clicking anywhere in the graph area
-         * will remove the common links graph.
+         * Function to build a common links set for clustered students.
          *
-         * @param number k The cluster number
-         * @param boolean manualClusters Is called for manual cluster?
+         * @param {array} studentKeys - Array of student ids.
+         * @param {object} notNodes - Non-visible graph nodes.
+         * @param {number} numStudents - The number od students.
+         * @return {array} common - The common link set.
          */
-        function clusteroidMouseover(k, manualClustering = false) {
-
-            graphLinks.remove();
-
-            // Change mouse listeners, normal method no work??
-            noCentroidMouse = true;
-            noNodeMouse = false;
-
-            iframeStaticPos = true;
-
-            // Remove graph when user clicks somewhere.
-            graph.on('click', removeGraph);
-
-            // Get the students in cluster k.
-            var studentKeys = {};
-            if (manualClustering) {
-                var currentIter = getCurrentIteration();
-
-                for (var key in manualClusters[currentIter]) {
-                    if (manualClusters[currentIter][key] == k) {
-                        studentKeys[key] = key;
-                    }
-                }
-            } else {
-                for (var key in scaledCentroids) {
-                    if (scaledCentroids[key].ci == k) {
-                        studentKeys[key] = key;
-                    }
-                }
-            }
-            var numStudents = Object.keys(studentKeys).length;
-
-            // Get the non-visible nodes.
-            var notNodes = {};
-            for (var i = 0; i < graphData.nodes.length; i++) {
-                if (!graphData.nodes[i].visible) {
-                    notNodes[graphData.nodes[i].id] = 1;
-                }
-            }
+        function getCommonLinks(studentKeys, notNodes, numStudents) {
 
             // Build a linkset from all the students in this cluster.
-            var links = {};
-            for (var student in studentKeys) {
-                for (var i = sliderValues[0], link, s, t, id;
-                         i < graphData.edges[student].length &&
-                         i <= sliderValues[1]; i++) {
+            var links = {},
+                student,
+                link,
+                s,
+                t,
+                id,
+                i;
+
+            for (student in studentKeys) {
+                for (i = sliderValues[0]; i < graphData.edges[student].length && i <= sliderValues[1]; i++) {
 
                     // Parse out the souce and target ids.
                     link = graphData.edges[student][i];
@@ -4153,16 +4261,18 @@
             }
 
             // Determine which links in the link set are common.
-            var common = [];
+            var common = [],
+                lid,
+                key;
 
-            for (var lid in links) {
+            for (lid in links) {
                 // Common links will be in all students link sets.
                 if (Object.keys(links[lid]).length == numStudents) {
 
                     // Use the lowest weight among the students.
                     var min = Number.MAX_SAFE_INTEGER;
 
-                    for (var key in links[lid]) {
+                    for (key in links[lid]) {
                         if (min > links[lid][key]) {
                             min = links[lid][key];
                         }
@@ -4180,9 +4290,66 @@
                 }
             }
             // Keep the section to module links.
-            for (var i = 0; i < graphData.links.length; i++) {
+            for (i = 0; i < graphData.links.length; i++) {
                 common[common.length] = graphData.links[i];
             }
+
+            return common;
+        }
+
+        /**
+         * Mouse listener for the cluster centroids. This function will
+         * determine the common links among the students in a cluster and
+         * display these common links. The graph and links will remain in place
+         * so the user can preview a node. Clicking anywhere in the graph area
+         * will remove the common links graph.
+         *
+         * @param {number} k - The cluster number
+         * @param {boolean} manualClustering - Is called for manual cluster?
+         */
+        function clusteroidMouseover(k, manualClustering) {
+
+            graphLinks.remove();
+
+            // Change mouse listeners, normal method no work??
+            noCentroidMouse = true;
+            noNodeMouse = false;
+
+            iframeStaticPos = true;
+
+            // Remove graph when user clicks somewhere.
+            graph.on('click', removeGraph);
+
+            // Get the students in cluster k.
+            var studentKeys = {},
+                key;
+            if (manualClustering) {
+                var currentIter = getCurrentIteration();
+
+                for (key in manualClusters[currentIter]) {
+                    if (manualClusters[currentIter][key] == k) {
+                        studentKeys[key] = key;
+                    }
+                }
+            } else {
+                for (key in scaledCentroids) {
+                    if (scaledCentroids[key].ci == k) {
+                        studentKeys[key] = key;
+                    }
+                }
+            }
+            var numStudents = Object.keys(studentKeys).length;
+
+            // Get the non-visible nodes.
+            var notNodes = {},
+                i;
+            for (i = 0; i < graphData.nodes.length; i++) {
+                if (!graphData.nodes[i].visible) {
+                    notNodes[graphData.nodes[i].id] = 1;
+                }
+            }
+
+            var common = getCommonLinks(studentKeys, notNodes, numStudents);
 
             // Show the graph with common links.
             graphNodes
@@ -4229,7 +4396,7 @@
         /**
          * Event listener for links when common links graph is showing.
          *
-         * @param object link The link that was hovered over
+         * @param {object} link - The link that was hovered over
          */
         function linkMouseover(link) {
 
@@ -4257,7 +4424,7 @@
         /**
          * Clustering function, does only 1 iteration per call.
          *
-         * @param number iter The clustering iteration value
+         * @param {number} iter - The clustering iteration value
          */
         function runKMeans(iter) {
 
@@ -4270,17 +4437,21 @@
                 return;
             }
 
-            var out = langStrings.iteration + ': ' + iter;
+            var out = langStrings.iteration + ': ' + iter,
+                key,
+                i,
+                dx,
+                dy;
 
             // Assign each student to a cluster.
-            for (var key in scaledCentroids) {
+            for (key in scaledCentroids) {
                 scaledCentroids[key].ci = getNewCluster(scaledCentroids[key]);
             }
 
             // Calculate the new centroids.
             var newCentroids = [];
 
-            for (var i = 0; i < centroids.length; i++) {
+            for (i = 0; i < centroids.length; i++) {
                 newCentroids[i] = getNewCentroid(i);
             }
 
@@ -4295,7 +4466,7 @@
                 // Calculate the total distance moved by all centroids.
                 var total = 0;
 
-                for (var i = 0, dx, dy; i < centroids.length; i++) {
+                for (i = 0; i < centroids.length; i++) {
 
                     dx = oldCentroids[i].x - centroids[i].x;
                     dy = oldCentroids[i].y - centroids[i].y;
@@ -4323,19 +4494,21 @@
         /**
          * Called to get a new centroid after reassigning students to clusters.
          *
-         * @param number k The cluster number
-         * @return object
+         * @param {number} k - The cluster number
+         * @return {object}
          */
         function getNewCentroid(k) {
 
-            var arr = [], ob = {};
+            var arr = [],
+                ob = {},
+                key;
 
             // For the students in cluster k.
-            for (var key in scaledCentroids) {
+            for (key in scaledCentroids) {
 
                 if (scaledCentroids[key].ci == k) {
 
-                    arr[arr.length] = [ scaledCentroids[key].x, scaledCentroids[key].y ];
+                    arr[arr.length] = [scaledCentroids[key].x, scaledCentroids[key].y];
 
                     ob[scaledCentroids[key].x + '_' + scaledCentroids[key].y] = {
                         x: scaledCentroids[key].x,
@@ -4347,7 +4520,7 @@
 
             // Remove old hull and make a new one.
             graph.selectAll('#hull-' + k).remove();
-            makePolygonHull(ob, k);
+            makePolygonHull(ob, k, false, false);
             graph.selectAll('.centroid').raise();
             graph.selectAll('.clustering-centroid').raise();
 
@@ -4371,31 +4544,33 @@
          * Gets the clustering centroid, accounting for all student points,
          * even if the points overlap.
          *
-         * @param array arr The array of student centroid points
-         * @return object
+         * @param {array} arr - The array of student centroid points
+         * @return {object}
          */
         function getClusteringCentroid(arr) {
 
             if (arr.length == 0) {
                 return null;
             }
-            var tx = 0, ty = 0;
+            var tx = 0,
+                ty = 0,
+                i;
 
             // Sum all points.
-            for (var i = 0; i < arr.length; i++) {
+            for (i = 0; i < arr.length; i++) {
                 tx += arr[i][0];
                 ty += arr[i][1];
             }
 
             // Centroid is mean of summation.
-            return { x: tx / arr.length, y: ty / arr.length };
+            return {x: tx / arr.length, y: ty / arr.length};
         }
 
         /**
          * Log the clustering results to the log panel and get membership data for server.
          *
-         * @param number iter The clustering iteration number
-         * @return array
+         * @param {number} iter - The clustering iteration number
+         * @return {array}
          */
         function logClusteringResults(iter) {
 
@@ -4405,9 +4580,14 @@
                 langStrings.iteration + ': ' + iter + '\n';
 
             // Get membership data for log panel and server.
-            var serverData = [];
+            var serverData = [],
+                i,
+                dx,
+                dy,
+                d,
+                key;
 
-            for (var i = 0, dx, dy, d; i < centroids.length; i++) {
+            for (i = 0; i < centroids.length; i++) {
 
                 dx = centroids[i].x - width / 2;
                 dy = centroids[i].y - height / 2;
@@ -4421,7 +4601,7 @@
                 serverData[i] = [];
 
                 // Add members for this cluster.
-                for (var key in scaledCentroids) {
+                for (key in scaledCentroids) {
                     if (scaledCentroids[key].ci == i) {
                         lpt += key + ', ';
                         serverData[i][serverData[i].length] = key;
@@ -4444,19 +4624,22 @@
         /**
          * Function called to send the cluster data to the server for logging.
          *
-         * @param array members An array of arrays representing the clustering membership
+         * @param {array} members - An array of arrays representing the clustering membership
          */
         function sendClustersToServer(members) {
 
-            var out = { clusterCoords: [] };
-            for (var i = 0; i < members.length; i++) {
+            var out = {clusterCoords: []},
+                i,
+                j,
+                rsd;
+            for (i = 0; i < members.length; i++) {
 
                 // Get the reversed centroid coordinate.
                 out.clusterCoords[i] = reverseScale(centroids[i]);
                 out.clusterCoords[i].num = i;
 
                 // Map anonymized student id back to real id for server.
-                for (var j = 0, rsd; j < members[i].length; j++) {
+                for (j = 0; j < members[i].length; j++) {
                     rsd = reverseScale(scaledCentroids[members[i][j]]);
                     members[i][j] = {
                         id:  realUserIds[members[i][j]],
@@ -4470,7 +4653,7 @@
             out.members = members;
             out.iteration = coordsData.iteration;
             out.clusterId = coordsData.clusterId;
-            out.coordsid  = lastChange;
+            out.coordsid = lastChange;
             out.usegeometric = useGeometricCentroids ? 1 : 0;
 
             // Prevent further server side clustering if partial time slice clustered.
@@ -4487,8 +4670,8 @@
          * The reversed values are normalized to the same coordinate space as the
          * module coordinates stored at the server.
          *
-         * @param object centroid The centroid point to reverse scale/translate
-         * @return object
+         * @param {object} centroid - The centroid point to reverse scale/translate
+         * @return {object}
          */
         function reverseScale(centroid) {
 
@@ -4502,18 +4685,21 @@
             newx = (newx - coordsData.originalx) / coordsData.distance;
             newy = (newy - coordsData.originaly) / coordsData.distance;
 
-            return { x: newx, y: newy };
+            return {x: newx, y: newy};
         }
 
         /**
          * Draws the cluster centroid points.
          *
-         * @param number t The time of animation transition duration
+         * @param {number} t - The time of animation transition duration
          */
         function drawAnimatedClusteringCentroids(t) {
 
-            var o = 14;
-            for (var i = 0, x, y; i < centroids.length; i++) {
+            var o = 14,
+                i,
+                x,
+                y;
+            for (i = 0; i < centroids.length; i++) {
 
                 x = centroids[i].x;
                 y = centroids[i].y;
@@ -4535,8 +4721,8 @@
         /**
          * Called to make the clustering slider for the clustering screen.
          *
-         * @param string ph A placeholder text for text box
-         * @param DOM element ctrlDiv The control panel div
+         * @param {string} ph - A placeholder text for text box
+         * @param {HTMLElement} ctrlDiv - The control panel div
          */
         function makeClusterSlider(ph, ctrlDiv) {
 
@@ -4556,7 +4742,9 @@
                     mode: 'steps',
                     stepped: true,
                     density: 100,
-                    filter: function() { return 1; },
+                    filter: function() {
+                        return 1;
+                    },
                     format: {
                         to: function(value) {
                             switch (value) {
@@ -4566,7 +4754,9 @@
                                 default: return '';
                             }
                         },
-                        from: function(value) { return ''; }
+                        from: function() {
+                            return '';
+                        }
                     }
                 }
             });
@@ -4601,8 +4791,10 @@
                 graph.selectAll('.centroid').remove();
 
                 // Fake student menu options array, not available here.
-                var options = [], i = 0;
-                for (var student in hullCentroids) {
+                var options = [],
+                    i = 0,
+                    student;
+                for (student in hullCentroids) {
 
                     options[i++] = {
                         value:    student,
@@ -4631,8 +4823,8 @@
          * Event listener for cluster slider, which controls certain aspects of the
          * clustering stage.
          *
-         * @param array values The slider values
-         * @param number handle The slider handle, index into values array
+         * @param {array} values - The slider values
+         * @param {number} handle - The slider handle, index into values array
          */
         function updateClusterSlider(values, handle) {
 
@@ -4746,25 +4938,32 @@
         /**
          * Draws the student centroids.
          *
-         * @param number scale The scale at which to draw the centroids
-         * @param number cx The centroid x
-         * @param number cy The centroid y
-         * @param number t The time of transition duration
+         * @param {number} scale - The scale at which to draw the centroids
+         * @param {number} cx - The centroid x
+         * @param {number} cy - The centroid y
+         * @param {number} t - The time of transition duration
          */
-        function drawAnimatedCentroids(scale = 1.0, cx = 0, cy = 0, t = 0) {
+        function drawAnimatedCentroids(scale, cx, cy, t) {
 
-            var o = 14, x, y, dx, dy, points;
-            var centreX = width / 2, centreY = height / 2;
+            var o = 14,
+                x,
+                y,
+                dx,
+                dy,
+                points,
+                centreX = width / 2,
+                centreY = height / 2,
+                key;
 
             scaledCentroids = {};
-            for (var key in hullCentroids) {
-                scaledCentroids[key] = { x: 0, y: 0 };
+            for (key in hullCentroids) {
+                scaledCentroids[key] = {x: 0, y: 0};
             }
 
-            coordsData.centre = { x: cx, y: cy };
+            coordsData.centre = {x: cx, y: cy};
 
             // Scale and translate points.
-            for (var key in hullCentroids) {
+            for (key in hullCentroids) {
 
                 x = hullCentroids[key].x;
                 y = hullCentroids[key].y;
@@ -4807,9 +5006,9 @@
                 y *= coordsData.scale;
                 y += height / 2;
 
-                return { x: x, y: y };
-            }
-            for (var key in serverCentroids) {
+                return {x: x, y: y};
+            };
+            for (key in serverCentroids) {
                 var scaled = forwardScaling(serverCentroids[key].x, serverCentroids[key].y);
                 x = scaled.x;
                 y = scaled.y;
@@ -4825,11 +5024,12 @@
         /**
          * Called to get a scale value and new centroid for cluster slider position 2.
          *
-         * @return object
+         * @return {array}
          */
         function getScaleAndCentroid() {
 
-            var arr = [];
+            var arr = [],
+                key;
 
             // Centroids move around during replay, use other function.
             if (replaying) {
@@ -4837,20 +5037,25 @@
             }
 
             // Gather the student data points into an array.
-            for (var key in hullCentroids) {
-                arr[arr.length] = [ hullCentroids[key].x, hullCentroids[key].y ];
+            for (key in hullCentroids) {
+                arr[arr.length] = [hullCentroids[key].x, hullCentroids[key].y];
             }
 
             var ctdOb = getBoxCentroid(arr);
             if (ctdOb === null) {
                 return null;
             }
-            var ctd = [ ctdOb.x, ctdOb.y ];
+            var ctd = [ctdOb.x, ctdOb.y];
 
             // Find the farthest points from the centroid in x and y directions.
-            var dx, dy, fxkey, fykey, maxX = 0, maxY = 0;
+            var dx,
+                dy,
+                fxkey,
+                fykey,
+                maxX = 0,
+                maxY = 0;
 
-            for (var key in hullCentroids) {
+            for (key in hullCentroids) {
 
                 dx = Math.abs(hullCentroids[key].x - ctd[0]);
                 dy = Math.abs(hullCentroids[key].y - ctd[1]);
@@ -4893,28 +5098,30 @@
          * positions are considered. This keeps everything on screen when
          * student centroids start moving around.
          *
-         * @return object
+         * @return {array}
          */
         function getReplayScaleAndCentroid() {
 
-            var arr = [];
-            var x = y = 0;
+            var arr = [],
+                x = 0,
+                y = 0,
+                iter;
 
             // Use the replay data to gather all future student centroid points.
-            for (var iter in replayData) {
+            for (iter in replayData) {
                 if (iter >= 0 && iter != 1) {
                     continue;
                 }
                 for (var clusternum in replayData[iter]) {
-                    for (var member in replayData[iter][clusternum]['members']) {
+                    for (var member in replayData[iter][clusternum].members) {
 
-                        x = replayData[iter][clusternum]['members'][member]['x'];
+                        x = replayData[iter][clusternum].members[member].x;
                         x = x * coordsScale + coordsData.originalx;
 
-                        y = replayData[iter][clusternum]['members'][member]['y'];
+                        y = replayData[iter][clusternum].members[member].y;
                         y = y * coordsScale + coordsData.originaly;
 
-                        arr[arr.length] = [ x, y ];
+                        arr[arr.length] = [x, y];
                     }
                 }
             }
@@ -4924,12 +5131,18 @@
             if (ctdOb === null) {
                 return null;
             }
-            var ctd = [ ctdOb.x, ctdOb.y ];
+            var ctd = [ctdOb.x, ctdOb.y];
 
             // Find the farthest points from the centroid in x and y directions.
-            var dx, dy, fxkey, fykey, maxX = 0, maxY = 0;
+            var dx,
+                dy,
+                fxkey,
+                fykey,
+                maxX = 0,
+                maxY = 0,
+                i;
 
-            for (var i = 0; i < arr.length; i++) {
+            for (i = 0; i < arr.length; i++) {
 
                 dx = Math.abs(arr[i][0] - ctd[0]);
                 dy = Math.abs(arr[i][1] - ctd[1]);
@@ -4969,8 +5182,8 @@
         /**
          * Function to get a centroid based on a bounding box around the points.
          *
-         * @param array arr An array of points
-         * @return object
+         * @param {array} arr - An array of points
+         * @return {object}
          */
         function getBoxCentroid(arr) {
 
@@ -4978,13 +5191,19 @@
             if (arr.length == 0) {
                 return null;
             } else if (arr.length == 1) {
-                return { x: arr[0][0], y: arr[0][1] };
+                return {x: arr[0][0], y: arr[0][1]};
             }
 
             // Find max and min coordinate values to define box.
-            var maxX = 0, maxY = 0, minX = width, minY = height;
+            var maxX = 0,
+                maxY = 0,
+                minX = width,
+                minY = height,
+                i,
+                x,
+                y;
 
-            for (var i = 0, x, y; i < arr.length; i++) {
+            for (i = 0; i < arr.length; i++) {
 
                 x = arr[i][0];
                 y = arr[i][1];
@@ -5003,7 +5222,7 @@
                 }
             }
             // Return box centre point.
-            return { x: (maxX + minX) / 2, y: (maxY + minY) / 2 };
+            return {x: (maxX + minX) / 2, y: (maxY + minY) / 2};
         }
 
         /**
@@ -5011,11 +5230,11 @@
          * adapted from https://stackoverflow.com/questions/45367821/where-a-vector-
          * would-intersect-the-screen-if-extended-towards-its-direction-sw.
          *
-         * @param number p1x Point x coord
-         * @param number p1y Point y coord
-         * @param number p2x Centre x coord
-         * @param number p2y Centre y coord
-         * @return number
+         * @param {number} p1x - Point x coord.
+         * @param {number} p1y - Point y coord.
+         * @param {number} p2x - Centre x coord.
+         * @param {number} p2y - Centre y coord.
+         * @return {number}
          */
         function getScale(p1x, p1y, p2x, p2y) {
 
@@ -5119,7 +5338,8 @@
          */
         function drawCentroids() {
 
-            for (var key in hullCentroids) {
+            var key;
+            for (key in hullCentroids) {
 
                 graph.append('polygon')
                     .attr('class', 'centroid')
@@ -5134,12 +5354,12 @@
                           .on('end', centroidDragEnd.bind(this, key)))
                     .on('mouseout', clusterMouseout)
                     .on('mouseover', clusterMouseover.bind(this, key))
-                    .on('click', function() { ddd.event.stopPropagation(); })
+                    .on('click', stopProp)
                     .on('click.centroidClick', centroidClick.bind(this, realUserIds[key], key, false));
             }
 
             if (debugCentroids) {
-                for (var key in serverCentroids) {
+                for (key in serverCentroids) {
                     var cx = (serverCentroids[key].x * coordsData.distance) + coordsData.originalx;
                     var cy = (serverCentroids[key].y * coordsData.distance) + coordsData.originaly;
                     graph.append('circle')
@@ -5157,9 +5377,9 @@
          * Called to get a string representation of coordinate points to draw
          * a polygon (triangle).
          *
-         * @param number x The x coordinate value
-         * @param number y The y coordinate value
-         * @return string
+         * @param {number} x - The x coordinate value
+         * @param {number} y - The y coordinate value
+         * @return {string}
          */
         function getPolygonPoints(x, y) {
 
@@ -5171,7 +5391,7 @@
          * Called to drag a student centroid to a new cluster. This function
          * draws a semi-transparent triangle at the mouse to drag.
          *
-         * @param numbers studentKey The student's id number
+         * @param {number} studentKey - The student's id number
          */
         function centroidDragStart(studentKey) {
 
@@ -5195,7 +5415,7 @@
          * Called to drag a student centroid to a new cluster. This function
          * moves the semi-transparent triangle with the mouse.
          *
-         * @param numbers studentKey The student's id number
+         * @param {number} studentKey - The student's id number
          */
         function centroidDrag(studentKey) {
 
@@ -5210,7 +5430,7 @@
         /**
          * Called to drag a student centroid to a new cluster.
          *
-         * @param numbers studentKey The student's id number
+         * @param {number} studentKey - The student's id number.
          */
         function centroidDragEnd(studentKey) {
 
@@ -5256,13 +5476,14 @@
         /**
          * Called to get the clustering centroid closest to a student centroid.
          *
-         * @param object coord Incoming coordinate
-         * @return int
+         * @param {object} coord - Incoming coordinate.
+         * @return {number} newK - The new cluster number.
          */
         function getNewCluster(coord) {
 
             // Find nearest cluster to where the student centroid was dropped.
-            var min = Number.MAX_SAFE_INTEGER, newK = -1;
+            var min = Number.MAX_SAFE_INTEGER,
+                newK = -1;
 
             for (var i = 0, d, dx, dy; i < centroids.length; i++) {
                 dx = coord.x - centroids[i].x;
@@ -5281,7 +5502,7 @@
         /**
          * Called to test if it is okay to drag a student centroid.
          *
-         * @return boolean
+         * @return {boolean}
          */
         function canDragCentroid() {
 
@@ -5331,7 +5552,7 @@
         /**
          * Event listener for mouseover during clustering stage.
          *
-         * @param number sid The student id
+         * @param {number} sid - The student id
          */
         function clusterMouseover(sid) {
 
@@ -5384,35 +5605,38 @@
                 graphLinks.remove();
 
                 // Get the non-visible nodes.
-                var notNodes = {};
-                for (var i = 0; i < graphData.nodes.length; i++) {
+                var notNodes = {},
+                    i;
+                for (i = 0; i < graphData.nodes.length; i++) {
                     if (!graphData.nodes[i].visible) {
                         notNodes[graphData.nodes[i].id] = 1;
                     }
                 }
 
                 // Build a linkset for the student.
-                var links = {};
-                for (var i = sliderValues[0], link, s, t, id;
-                         i < graphData.edges[sid].length &&
-                         i <= sliderValues[1]; i++) {
+                var links = {},
+                    link,
+                    src,
+                    trg,
+                    id;
+                for (i = sliderValues[0]; i < graphData.edges[sid].length && i <= sliderValues[1]; i++) {
 
                     // Parse out the souce and target ids.
                     link = graphData.edges[sid][i];
 
                     if (typeof link.source == 'string') {
-                        s = parseInt(link.source);
-                        t = parseInt(link.target);
+                        src = parseInt(link.source);
+                        trg = parseInt(link.target);
                     } else {
-                        s = link.source.id;
-                        t = link.target.id;
+                        src = link.source.id;
+                        trg = link.target.id;
                     }
 
                     // Don't link to an invisible node.
-                    if (notNodes[s] || notNodes[t]) {
+                    if (notNodes[src] || notNodes[trg]) {
                         continue;
                     }
-                    id = s + '_' + t;
+                    id = src + '_' + trg;
 
                     // Add the link to the link set, considering weights.
                     if (!links[id]) {
@@ -5423,10 +5647,11 @@
                 }
 
                 // Make the actual student links.
-                var linx = [];
-                var split, colour = graphData.edges[sid][0].colour;
+                var linx = [],
+                    split,
+                    colour = graphData.edges[sid][0].colour;
 
-                for (var link in links) {
+                for (link in links) {
                     split = link.split('_');
 
                     linx[linx.length] = {
@@ -5438,7 +5663,7 @@
                 }
 
                 // Keep the section to module links.
-                for (var i = 0; i < graphData.links.length; i++) {
+                for (i = 0; i < graphData.links.length; i++) {
                     linx[linx.length] = graphData.links[i];
                 }
 
@@ -5463,9 +5688,9 @@
          * Event listener for left-clicking a student centroid triangle or a clustering
          * centroid X. Creates a text area and button for entering comments about a centroid.
          *
-         * @param number user The student/teacher id
-         * @param number key The centroid array key
-         * @param boolean cluster A flag to detemine which centroids to use
+         * @param {number} user - The student/teacher id
+         * @param {number} key - The centroid array key
+         * @param {boolean} cluster - A flag to detemine which centroids to use
          */
         function centroidClick(user, key, cluster) {
 
@@ -5498,9 +5723,14 @@
 
             // Centre if possible, move left or right if centroid close to edge.
             var scx = cluster ? centroids[key].x : scaledCentroids[key].x;
-            var tbx = scx + bnds.width / 2 >= width ? scx + gbb.x - bnds.width :
-                scx - bnds.width / 2 <= 0 ? scx + gbb.x :
-                scx + gbb.x - (bnds.width / 2);
+            var tbx;
+            if (scx + bnds.width / 2 >= width) {
+                tbx = scx + gbb.x - bnds.width;
+            } else if (scx - bnds.width / 2 <= 0) {
+                tbx = scx + gbb.x;
+            } else {
+                tbx = scx + gbb.x - (bnds.width / 2);
+            }
             textBox.style.left = tbx + 'px';
 
             // Below centroid if possible, above if too close to bottom edge.
@@ -5519,7 +5749,7 @@
             // Position based on text area position.
             save.style.position = 'absolute';
             save.style.left = tbx + 'px';
-            save.style.top  = (tby + bnds.height) + 'px';
+            save.style.top = (tby + bnds.height) + 'px';
 
             document.body.appendChild(save);
 
@@ -5551,7 +5781,7 @@
                 if (dragging) {
                     bnds = this.getBoundingClientRect();
                     save.style.left = tbx + 'px';
-                    save.style.top  = (tby + bnds.height) + 'px';
+                    save.style.top = (tby + bnds.height) + 'px';
                 }
             });
 
@@ -5582,6 +5812,6 @@
         }
         // End of modular encapsulation, start the program.
         init(incoming);
-    }
+    };
     return behaviourAnalytics;
 });

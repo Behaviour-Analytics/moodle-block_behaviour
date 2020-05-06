@@ -1,0 +1,28 @@
+{
+  "name": "moodle-block_behaviour",
+  "title": "Behaviour Analytics",
+  "version": "0.6.2",
+  "author": {
+    "name": "Athabasca University"
+  },
+  "homepage": "https://moodle.org/plugins/block_behaviour",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Behaviour-Analytics/moodle-block_behaviour"
+  },
+  "license": "GPL-3.0-or-later",
+  "engines": {
+    "node": ">= 0.10.0"
+  },
+  "devDependencies": {
+    "grunt": "~0.4.5",
+    "grunt-contrib-clean": "^2.0.0",
+    "grunt-contrib-concat": "~0.4.0",
+    "grunt-contrib-jshint": "~0.10.0",
+    "grunt-contrib-less": "^2.0.0",
+    "grunt-contrib-nodeunit": "~0.4.1",
+    "grunt-contrib-uglify": "~0.5.0",
+    "grunt-contrib-watch": "~0.6.1",
+    "grunt-load-gruntfile": "0.0.2"
+  }
+}
