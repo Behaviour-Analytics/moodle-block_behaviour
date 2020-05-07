@@ -9,6 +9,7 @@ module.exports = function(grunt) {
     grunt.loadNpmTasks('grunt-contrib-less');
     grunt.loadNpmTasks('grunt-contrib-watch');
     grunt.loadNpmTasks('grunt-contrib-clean');
+    grunt.loadNpmTasks('grunt-babel');
 
     // Taken from Moodle's Gruntfile.js.
     var path = require('path'),
@@ -36,7 +37,7 @@ module.exports = function(grunt) {
         eslint: {
             // Even though warnings dont stop the build we don't display warnings by default because
             // at this moment we've got too many core warnings.
-            options: {quiet: !grunt.option('show-lint-warnings')},
+            //options: {quiet: !grunt.option('show-lint-warnings')},
             amd: {src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js']},
         },
         uglify: {
@@ -48,6 +49,19 @@ module.exports = function(grunt) {
                 }],
                 options: {report: 'none'}
             }
+        },
+        babel: {
+            options: {
+                sourceMap: true,
+                presets: ['@babel/preset-env']
+            },
+            dist: {
+                files: ''
+            }
+        },
+        stylelint: {
+            css: ['*.css', 'css/**/*.css'],
+            less: ['*.css', 'css/**/*.css', '*.less', 'less/**/*.less']
         },
         watch: {
             // If any .less file changes in directory "less" then run the "less" task.
