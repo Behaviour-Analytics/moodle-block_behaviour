@@ -9,6 +9,7 @@ module.exports = function(grunt) {
     grunt.loadNpmTasks('grunt-contrib-less');
     grunt.loadNpmTasks('grunt-contrib-watch');
     grunt.loadNpmTasks('grunt-contrib-clean');
+    grunt.loadNpmTasks('grunt-contrib-uglify');
     grunt.loadNpmTasks('grunt-babel');
 
     // Taken from Moodle's Gruntfile.js.
@@ -44,11 +45,14 @@ module.exports = function(grunt) {
             amd: {
                 files: [{
                     expand: true,
-                    src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js'],
+                    //src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js'],
+                    src: '**/amd/src/*.js',
                     rename: uglifyRename
                 }],
-                options: {report: 'none'}
-            }
+                options: {
+                    report: 'none'
+                }
+            },
         },
         babel: {
             options: {
@@ -85,5 +89,5 @@ module.exports = function(grunt) {
     });
 
     // Default task.
-    grunt.registerTask('default', ['less']);
+    grunt.registerTask('default', ['uglify']);
 };
