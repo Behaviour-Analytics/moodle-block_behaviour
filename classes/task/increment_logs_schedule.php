@@ -135,7 +135,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         reset($courses);
 
         // For each course the plugin is being used in.
-        foreach ($courses as $coursekey => $course) {
+        foreach ($courses as $course) {
             $this->update_course($course);
         }
     }
@@ -151,20 +151,23 @@ class increment_logs_schedule extends \core\task\scheduled_task {
     private function get_logs(&$course) {
         global $DB;
 
-        $oars = '';
+        $oars = [];
 
         // Get the current participants of this course for use in SQL.
-        $participants = user_get_participants($course->courseid, 0, 0, 5, 0, 0, []);
+        $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+        $participants = user_get_participants($course->courseid, 0, 0, $roleid, 0, 0, []);
+
         foreach ($participants as $participant) {
-            $oars .= ' userid = '.$participant->id.' OR';
+            $oars[] = $participant->id;
         }
-        // Remove trailing OR.
-        $oars = substr($oars, 0, -2);
 
         // Sanity check, might not be any students enroled.
-        if (strlen($oars) == 0) {
+        if (count($oars) == 0) {
             return;
         }
+
+        // Build the query.
+        list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
 
         // Pull the new logs.
         $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
@@ -173,7 +176,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                    AND anonymous = 0
                    AND crud = 'r'
                    AND contextlevel = :contextmodule
-                   AND (".$oars.")
+                   AND userid $insql
                    AND timecreated > :lastsync
               ORDER BY userid, timecreated";
 
@@ -182,6 +185,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
             'contextmodule' => CONTEXT_MODULE,
             'lastsync'      => $course->lastsync
         );
+        $params = array_merge($params, $inparams);
 
         return $DB->get_records_sql($sql, $params);
     }
@@ -240,7 +244,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                 self::dbug('Getting coords for teacher ' . $tid->userid . ' ' . $coordid->coordsid);
 
                 // Build the module coordinates array.
-                foreach ($coords as $key => $value) {
+                foreach ($coords as $value) {
 
                     self::dbug($value->moduleid . ' ' . $value->visible);
 
@@ -294,7 +298,8 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                     $coords[$teacher] = [];
                 }
 
-                foreach ($modcoords[$teacher] as $coordsid => $crd) {
+                $keys = array_keys($modcoords[$teacher]);
+                foreach ($keys as $coordsid) {
 
                     // Sanity check, clicked module node may not be visible.
                     if (isset($modcoords[$teacher][$coordsid][$modid])) {
@@ -392,7 +397,9 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
         // For each teacher and graph configuration, do each student's centroid.
         foreach ($modcoords as $teacher => $coordids) {
-            foreach ($coordids as $coordid => $modids) {
+
+            $keys = array_keys($coordids);
+            foreach ($keys as $coordid) {
 
                 reset($logs);
                 $studentid = $logs[key($logs)]->userid;

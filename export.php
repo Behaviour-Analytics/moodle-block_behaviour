@@ -38,6 +38,112 @@ require_once($CFG->dirroot . '/lib/modinfolib.php');
 /**
  * Function to export logs, used in both web and cli export.
  *
+ * @param string $insql The IN part of the SQL.
+ * @return string
+ */
+function get_sql(&$insql) {
+
+    $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
+              FROM {logstore_standard_log}
+             WHERE courseid = :courseid
+               AND anonymous = 0
+               AND crud = 'r'
+               AND contextlevel = :contextmodule
+               AND userid $insql
+          ORDER BY userid, timecreated";
+
+    return $sql;
+}
+
+/**
+ * Function to extract logs for currently enroled students.
+ *
+ * @param int $courseid The course id number
+ * @param boolean $includecurrent Whether or not to include current logs
+ * @return array
+ */
+function get_current_logs(&$courseid, &$includecurrent) {
+    global $DB;
+
+    if (!$includecurrent) {
+        return [];
+    }
+
+    // Get currently enroled students.
+    $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+    $participants = user_get_participants($courseid, 0, 0, $roleid, 0, 0, []);
+
+    // Get the student id information.
+    $oars = [];
+    foreach ($participants as $value) {
+        $oars[] = $value->id;
+    }
+
+    // Build the query.
+    list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
+    $sql = get_sql($insql);
+
+    // Paramaters for DB query.
+    $params = array(
+        'courseid'      => $courseid,
+        'contextmodule' => CONTEXT_MODULE
+    );
+
+    // Get logs for currently enroled students.
+    $inparams = array_merge($params, $inparams);
+    $currentlogs = $DB->get_records_sql($sql, $inparams);
+    
+    return $currentlogs;
+}
+
+/**
+ * Function to extract logs for previously enroled students.
+ *
+ * @param int $courseid The course id number
+ * @param boolean $includepast Whether or not to include past logs
+ * @return array
+ */
+function get_current_logs(&$courseid, &$includepast) {
+    global $DB;
+
+    if (!$includepast) {
+        return [];
+    }
+
+    // Get all course participants.
+    $others = user_get_participants($courseid, 0, 0, 0, 0, 0, []);
+
+    // Get administrators.
+    $admins = get_admins();
+
+    // Get all course participant and admin ids.
+    $ands = [];
+    foreach ($others as $value) {
+        $ands[] = $value->id;
+    }
+    foreach ($admins as $value) {
+        $ands[] = $value->id;
+    }
+
+    // Build query.
+    list($insql, $inparams) = $DB->get_in_or_equal($ands, SQL_PARAMS_NAMED, 'param', false);
+    $sql = get_sql($insql);
+
+    // Paramaters for DB query.
+    $params = array(
+        'courseid'      => $courseid,
+        'contextmodule' => CONTEXT_MODULE
+    );
+
+    $inparams - array_merge($params, $inparams);
+    $pastlogs = $DB->get_records_sql($sql, $inparams);
+
+    return $pastlogs;
+}
+
+/**
+ * Function to export logs, used in both web and cli export.
+ *
  * @param int $courseid The course id number
  * @param boolean $includepast Whether or not to include historical logs
  * @param boolean $includecurrent Whether or not to include current logs
@@ -49,78 +155,9 @@ function export_logs($courseid, $includepast, $includecurrent, $course, $cli = f
 
     global $DB;
 
-    // Get current students.
-    $participants = user_get_participants($courseid, 0, 0, 5, 0, 0, []);
+    $currentlogs = get_current_logs($courseid, $includecurrent);
 
-    // Get all course participants.
-    $others = user_get_participants($courseid, 0, 0, 0, 0, 0, []);
-
-    // Get administrators.
-    $admins = get_admins();
-
-    // Paramaters for DB queries.
-    $params = array(
-        'courseid'      => $courseid,
-        'contextmodule' => CONTEXT_MODULE
-    );
-
-    $oars = '';
-
-    // Get the student id information.
-    foreach ($participants as $key => $value) {
-        $oars .= ' userid = '.$value->id.' OR';
-    }
-    // Remove trailing OR.
-    $oars = substr($oars, 0, -2);
-
-    $currentlogs = [];
-
-    // Get logs where student is currently enroled.
-    if ($includecurrent) {
-
-        // Query the logs .
-        $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
-                  FROM {logstore_standard_log}
-                 WHERE courseid = :courseid
-                   AND anonymous = 0
-                   AND crud = 'r'
-                   AND contextlevel = :contextmodule
-                   AND (".$oars.")
-              ORDER BY userid, timecreated";
-
-        $currentlogs = $DB->get_records_sql($sql, $params);
-    }
-
-    $ands = '';
-
-    // Get all course participant ids.
-    foreach ($others as $key => $value) {
-        $ands .= ' userid != '.$value->id.' AND';
-    }
-    // Get admin ids.
-    foreach ($admins as $key => $value) {
-        $ands .= ' userid != '.$value->id.' AND';
-    }
-    $ands = substr($ands, 0, -3);
-
-    $pastlogs = [];
-    $logs;
-
-    // Get past course logs, excluding currently enroled students, admins,
-    // and non-student participants (teachers).
-    if ($includepast) {
-
-        $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
-                  FROM {logstore_standard_log}
-                 WHERE courseid = :courseid
-                   AND anonymous = 0
-                   AND crud = 'r'
-                   AND contextlevel = :contextmodule
-                   AND (".$ands.")
-              ORDER BY userid, timecreated";
-
-        $pastlogs = $DB->get_records_sql($sql, $params);
-    }
+    $pastlogs = get_past_logs($courseid, $includepast);
 
     // Merge and sort current and past logs.
     $logs = array_merge($pastlogs, $currentlogs);
@@ -134,7 +171,7 @@ function export_logs($courseid, $includepast, $includecurrent, $course, $cli = f
     $modinfo = get_fast_modinfo($course);
     $courseinfo = [];
 
-    foreach ($modinfo->sections as $sectionnum => $section) {
+    foreach ($modinfo->sections as $section) {
 
         foreach ($section as $cmid) {
             $cm = $modinfo->cms[$cmid];
@@ -146,6 +183,7 @@ function export_logs($courseid, $includepast, $includecurrent, $course, $cli = f
                     'type' => $cm->modname,
                     'name' => $cm->name
                 );
+
             } else if ($cli && $cm->has_view() && ! $cm->uservisible) {
                 // CLI export.
 
@@ -159,7 +197,7 @@ function export_logs($courseid, $includepast, $includecurrent, $course, $cli = f
 
     // Extract the required information from the logs.
     $loginfo = [];
-    $module;
+    $module = null;
     reset($logs);
 
     foreach ($logs as $key => $value) {

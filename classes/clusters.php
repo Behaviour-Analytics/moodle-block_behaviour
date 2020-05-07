@@ -125,18 +125,17 @@ class clusters {
                 $members = $DB->get_records('block_behaviour_members', $params);
 
                 // Get centroids for those members.
-                $oars = '';
+                $oars = [];
                 foreach ($members as $member) {
-                    $oars .= ' studentid = '.$member->studentid.' OR';
+                    $oars[] = $member->studentid;
                 }
-                $oars = substr($oars, 0, -2);
 
-                if (strlen($oars) == 0) {
+                if (count($oars) == 0) {
                     self::dbug("No members??");
                     continue;
                 }
 
-                self::dbug(count($members).' '.$oars);
+                self::dbug(count($members).' '.count($oars));
 
                 // Set up new clusters array.
                 $newclusters = [];
@@ -161,19 +160,21 @@ class clusters {
 
                 // Determine whether to use geometric or decomposed centroids.
                 reset($clusters);
-                $usegeometric = $clusters[key($clusters)]->usegeometric;
-                $table = '{block_behaviour_centres}';
-                if ($usegeometric == 1) {
-                    $table = '{block_behaviour_centroids}';
-                }
+                $usegeo = $clusters[key($clusters)]->usegeometric;
+                $table = $usegeo == 1 ? '{block_behaviour_centroids}' : '{block_behaviour_centres}';
+
+                // Build the query.
+                list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
+                $allparams = array_merge(['table' => $table], $params, $inparams);
 
                 // Get the current student centroids.
-                $sql = "SELECT * FROM ".$table."
+                $sql = "SELECT * FROM :table
                          WHERE courseid = :courseid
                            AND userid = :userid
                            AND coordsid = :coordsid
-                           AND (".$oars.")";
-                $studentcentroids = $DB->get_records_sql($sql, $params);
+                           AND studentid $insql";
+                
+                $studentcentroids = $DB->get_records_sql($sql, $allparams);
 
                 self::dbug("Num of members: ".count($studentcentroids));
 

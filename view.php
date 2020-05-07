@@ -39,7 +39,7 @@ $replaying   = optional_param('replay', false, PARAM_BOOL);
 
 $id = required_param('id', PARAM_INT);
 
-$course = $DB->get_record('course', array('id' => $id), "*", MUST_EXIST);
+$course = get_course($id);
 require_login($course);
 
 $context = context_course::instance($course->id);
@@ -59,11 +59,11 @@ $event->trigger();
 // Some values needed here.
 $panelwidth = 40;
 $legendwidth = 180;
-$globallogs;
-$globalclusterid;
-$globalmembers;
-$globalmanualmembers;
-$out;
+$globallogs = null;
+$globalclusterid = null;
+$globalmembers = null;
+$globalmanualmembers = null;
+$out = '';
 $debugcentroids = false;
 $version38 = $CFG->version >= 2019111800 ? true : false;
 
@@ -310,7 +310,7 @@ if ($replaying) {
 } else {
     // Regular graphing/clustering.
 
-    $loginfo; $userinfo;
+    $loginfo = null; $userinfo = null;
 
     if (count($nodes) > 0) {
         // Get the access logs from the plugin table.
@@ -487,7 +487,7 @@ function get_course_info(&$course) {
 function get_node_data($coordsid, $userid) {
     global $DB, $course;
 
-    $records;
+    $records = null;
     $params = array(
         'courseid' => $course->id,
         'userid'   => $userid
@@ -534,7 +534,7 @@ function get_node_data($coordsid, $userid) {
 function get_scale_data($coordsid, $userid) {
     global $DB, $course;
 
-    $scale = 1.0; $scl;
+    $scale = 1.0; $scl = null;
     $params = array(
         'courseid' => $course->id,
         'userid'   => $userid
@@ -723,7 +723,9 @@ function get_members($coordsid, $clusterid, $table, $userid) {
  */
 function check_got_all_mods(&$mods, &$nodes, $modids) {
 
-    foreach ($nodes as $mid => $value) {
+    $keys = array_keys($nodes);
+
+    foreach ($keys as $mid) {
         if (!isset($modids[$mid]) && is_numeric($mid)) {
             $mods[] = array(
                 'id'   => $mid,

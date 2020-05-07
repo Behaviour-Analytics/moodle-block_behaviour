@@ -40,7 +40,7 @@ defined('MOODLE_INTERNAL') || die();
 
 // The argv[0] is script name and we need at least 3 args.
 if ($argc < 4) {
-    usage();
+    die(get_string('exportcliusage', 'block_behaviour').PHP_EOL);
 }
 
 // These are argv array access constants.
@@ -54,7 +54,7 @@ $courseid = intval($argv[COURSE_ID]);
 
 // Verify the course id.
 try {
-    $course = $DB->get_record('course', array('id' => $courseid), "*", MUST_EXIST);
+    $course = get_course($courseid);
 } catch (Exception $e) {
     // ... or print error message.
     echo get_string('invalidcourse', 'block_behaviour', $courseid).PHP_EOL;
@@ -72,7 +72,7 @@ if ($argv[INCLUDE_PAST] == '1' ||
     $includepast = 1;
 } else if ($argv[INCLUDE_PAST] != '0' &&
          strcasecmp($argv[INCLUDE_PAST], 'false') != 0) {
-    usage();
+    die(get_string('exportcliusage', 'block_behaviour').PHP_EOL);
 }
 
 // Including current logs?
@@ -82,7 +82,7 @@ if ($argv[INCLUDE_CURRENT] == '1' ||
     $includecurrent = 1;
 } else if ($argv[INCLUDE_CURRENT] != '0' &&
          strcasecmp($argv[INCLUDE_CURRENT], 'false') != 0) {
-    usage();
+    die(get_string('exportcliusage', 'block_behaviour').PHP_EOL);
 }
 
 // No logs to export? Nothing to do.
@@ -131,17 +131,3 @@ echo get_string('exportcliout', 'block_behaviour', $filename).PHP_EOL;
 $out = export_logs($courseid, $includepast, $includecurrent, $course, true);
 
 file_put_contents($filename, json_encode($out));
-
-/**
- * Prints usage and optionally quits the script.
- *
- * @param boolean $quit Should quit the script or not?
- */
-function usage($quit=true) {
-
-    echo get_string('exportcliusage', 'block_behaviour').PHP_EOL;
-
-    if ($quit) {
-        die();
-    }
-}

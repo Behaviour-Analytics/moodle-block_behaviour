@@ -63,7 +63,11 @@ class block_behaviour extends block_base {
      */
     public function get_content() {
 
-        global $COURSE, $USER, $DB, $PAGE;
+        global $COURSE, $DB, $PAGE;
+
+        if ($this->content !== null) {
+            return $this->content;
+        }
 
         // Do not show block for student users.
         $context = context_course::instance($COURSE->id);
@@ -85,10 +89,6 @@ class block_behaviour extends block_base {
         $course = $DB->get_record('block_behaviour_installed', array('courseid' => $COURSE->id));
         $task = new \block_behaviour\task\increment_logs_schedule();
         $task->update_course($course);
-
-        if ($this->content !== null) {
-            return $this->content;
-        }
 
         $this->content = new stdClass();
 
@@ -155,7 +155,7 @@ class block_behaviour extends block_base {
         $imform = new import_form($url, null, 'post', 'target', array('id' => "import-form"));
 
         // Form has been submitted, import the file and store the result.
-        if ($fromform = $imform->get_data()) {
+        if ($imform->get_data()) {
 
             $returned = $imform->import($context);
             $result = $DB->get_record('block_behaviour_installed', array('courseid' => $COURSE->id));
@@ -231,7 +231,6 @@ class export_form extends moodleform {
      * Add elements to form. There are two checkboxes and a submit button.
      */
     public function definition() {
-        global $COURSE;
 
         $mform = $this->_form; // Don't forget the underscore!
 
