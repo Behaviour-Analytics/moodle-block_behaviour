@@ -41,6 +41,7 @@ module.exports = function(grunt) {
             //options: {quiet: !grunt.option('show-lint-warnings')},
             amd: {src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js']},
         },
+        clean: ['amd/build/*.min.js'],
         uglify: {
             amd: {
                 files: [{
