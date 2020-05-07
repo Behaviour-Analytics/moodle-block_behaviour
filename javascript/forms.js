@@ -25,25 +25,25 @@
 /**
  * Simple function to attach event listeners to form elements.
  *
- * @param object Y Some internal Moodle thing, not used here
- * @param object incoming The incoming server data
+ * @param {object} Y Some internal Moodle thing, not used here
+ * @param {object} incoming The incoming server data
  */
-function init(Y, incoming) {
+function init(Y, incoming) { // eslint-disable-line
 
-    var url        = incoming.url;
-    var courseId   = incoming.courseid;
+    var url = incoming.url;
+    var courseId = incoming.courseid;
     var courseName = incoming.name;
     var sessionKey = incoming.sesskey;
     var dndMessage = incoming.dndmsg;
-    var wrongFile  = incoming.wrongfile;
-    var noFile     = incoming.nofile;
+    var wrongFile = incoming.wrongfile;
+    var noFile = incoming.nofile;
 
     // Export form listener, unchecks checked boxes.
     document.getElementById("export-form")
         .addEventListener("submit", function() {
                 setTimeout(function() {
                     document.getElementById("current-box").checked = false;
-                    document.getElementById("past-box").checked    = false;
+                    document.getElementById("past-box").checked = false;
                 }, 1000);
         });
 
@@ -54,7 +54,8 @@ function init(Y, incoming) {
             setTimeout(function() {
 
                 // Filepicker has file name as link, find.
-                var wrongCourse = '', gotFile = false;
+                var wrongCourse = '',
+                    gotFile = false;
                 var anchors = document.getElementsByTagName("a");
 
                 for (var i = 0; i < anchors.length; i++) {
@@ -103,11 +104,11 @@ function init(Y, incoming) {
 /**
  * Called to get the result of the import, success or error.
  *
- * @param string url The script name to call at the server
- * @param number courseId The course id value
- * @param string sesssionKey The key for this user session
- * @param string wrongCourse File name if the file does not contain the course name
- * @param string wrongFile Message if the file does not contain the course name
+ * @param {string} url The script name to call at the server
+ * @param {number} courseId The course id value
+ * @param {string} sessionKey The key for this user session
+ * @param {string} wrongCourse File name if the file does not contain the course name
+ * @param {string} wrongFile Message if the file does not contain the course name
  */
 function getImportResult(url, courseId, sessionKey, wrongCourse, wrongFile) {
 
@@ -138,7 +139,7 @@ function getImportResult(url, courseId, sessionKey, wrongCourse, wrongFile) {
 /**
  * Simple function to print out a message, then remove it.
  *
- * @param string msg The message to print
+ * @param {string} msg The message to print
  */
 function doMessage(msg) {
 

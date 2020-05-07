@@ -6,15 +6,12 @@ module.exports = function(grunt) {
     grunt.loadGruntfile("../../Gruntfile.js");
 
     // These plugins provide necessary tasks.
-    grunt.loadNpmTasks('grunt-contrib-less');
+    grunt.loadNpmTasks('grunt-contrib-jshint');
     grunt.loadNpmTasks('grunt-contrib-watch');
     grunt.loadNpmTasks('grunt-contrib-clean');
-    //grunt.loadNpmTasks('grunt-contrib-uglify');
+    grunt.loadNpmTasks('grunt-contrib-uglify');
+    grunt.loadNpmTasks('grunt-contrib-less');
     grunt.loadNpmTasks('grunt-babel');
-
-    // Taken from Moodle's Gruntfile.js.
-    var path = require('path'),
-        cwd = process.env.PWD || process.cwd();
 
     /**
      * Function to generate the destination for the uglify task
@@ -29,29 +26,46 @@ module.exports = function(grunt) {
     var uglifyRename = function(destPath, srcPath) {
         destPath = srcPath.replace('src', 'build');
         destPath = destPath.replace('.js', '.min.js');
-        destPath = path.resolve(cwd, destPath);
         return destPath;
     };
 
     // Project configuration.
     grunt.initConfig({
+        pkg: grunt.file.readJSON('package.json'),
+        jshint: {
+            files: ['Gruntfile.js', 'javascript/*.js', 'amd/src/behaviour-analytics.js', 'amd/src/modules.js'],
+            options: {
+                globals: {
+                    jQuery: true
+                }
+            }
+        },
+        watch: {
+            files: ['<%= jshint.files %>'],
+            tasks: ['jshint', 'eslint']
+        },
         eslint: {
             // Even though warnings dont stop the build we don't display warnings by default because
             // at this moment we've got too many core warnings.
-            //options: {quiet: !grunt.option('show-lint-warnings')},
-            amd: {src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js']},
+            options: {
+                quiet: grunt.option('show-lint-warnings')
+            },
+            amd: {
+                src: ['<%= jshint.files %>']
+            },
         },
         clean: ['amd/build/*.min.js'],
         uglify: {
             amd: {
                 files: [{
                     expand: true,
-                    //src: ['**/amd/src/behaviour-analytics.js', '**/amd/src/modules.js'],
-                    src: '**/amd/src/*.js',
+                    //src: ['amd/src/behaviour-analytics.js', 'amd/src/modules.js'],
+                    src: 'amd/src/*.js',
                     rename: uglifyRename
                 }],
                 options: {
-                    report: 'none'
+                    report: 'none',
+                    banner: '/*! <%= pkg.name %> v<%= pkg.version %> <%= grunt.template.today("dd-mm-yyyy") %> */\n'
                 }
             },
         },
@@ -67,11 +81,6 @@ module.exports = function(grunt) {
         stylelint: {
             css: ['*.css', 'css/**/*.css'],
             less: ['*.css', 'css/**/*.css', '*.less', 'less/**/*.less']
-        },
-        watch: {
-            // If any .less file changes in directory "less" then run the "less" task.
-            files: "less/*.less",
-            tasks: ["less"]
         },
         less: {
             // Production config is also available.
@@ -90,5 +99,5 @@ module.exports = function(grunt) {
     });
 
     // Default task.
-    grunt.registerTask('default', ['less']);
+    grunt.registerTask('default', ['watch']);
 };

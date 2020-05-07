@@ -2490,9 +2490,9 @@
                     var p1 = [polyPoints[0][0], polyPoints[0][1] - hullPadding];
                     var p2 = [polyPoints[0][0], polyPoints[0][1] + hullPadding];
 
-                    return 'M ' + p1
-                        + ' A ' + [hullPadding, hullPadding, '0,0,0', p2].join(',')
-                        + ' A ' + [hullPadding, hullPadding, '0,0,0', p1].join(',');
+                    return 'M ' + p1 +
+                        ' A ' + [hullPadding, hullPadding, '0,0,0', p2].join(',') +
+                        ' A ' + [hullPadding, hullPadding, '0,0,0', p1].join(',');
                 };
             } else if (coords.length == 2) {
                 // Only 2 points?
@@ -2549,10 +2549,10 @@
                     var control1 = vecSum(extension1, invControlDelta);
                     var control3 = vecSum(extension0, controlDelta);
 
-                    return 'M ' + extension0
-                        + ' C ' + [control0, control1, extension1].join(',')
-                        + ' S ' + [control3, extension0].join(',')
-                        + ' Z';
+                    return 'M ' + extension0 +
+                        ' C ' + [control0, control1, extension1].join(',') +
+                        ' S ' + [control3, extension0].join(',') +
+                        ' Z';
                 };
             } else {
                 // Enough points to make a concave hull.
@@ -4657,8 +4657,8 @@
             out.usegeometric = useGeometricCentroids ? 1 : 0;
 
             // Prevent further server side clustering if partial time slice clustered.
-            if ((sliderValues[0] != 0 || sliderValues[1] != graphData.maxSession)
-                    && out.iteration < 0) {
+            if ((sliderValues[0] != 0 || sliderValues[1] != graphData.maxSession) &&
+                    out.iteration < 0) {
                 out.iteration = clusterIters;
             }
 

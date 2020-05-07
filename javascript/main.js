@@ -14,14 +14,21 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Function waits for modules to be ready, then inits the graph program.
+ * Simple script that waits for AMD modules to load.
  *
  * @package block_behaviour
  * @author Ted Krahn
  * @copyright 2019 Athabasca University
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
-function waitForModules(Y, incoming) {
+
+/**
+ * Function waits for modules to be ready, then inits the graph program.
+ *
+ * @param {object} Y Some internal Moodle thing, not used here
+ * @param {object} incoming The incoming server data
+ */
+function waitForModules(Y, incoming) { // eslint-disable-line
 
     if (window.dataDrivenDocs && window.noUiSlider && window.mersenneTwister &&
         window.behaviourAnalytics) {
