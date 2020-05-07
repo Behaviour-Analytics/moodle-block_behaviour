@@ -1,8 +1,5 @@
 language: php
 
-dist: bionic
-  sudo: required
-
 addons:
   postgresql: "9.4"
 
