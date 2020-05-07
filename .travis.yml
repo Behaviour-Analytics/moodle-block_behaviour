@@ -1,5 +1,8 @@
 language: php
 
+dist: bionic
+  sudo: required
+
 addons:
   postgresql: "9.4"
 
@@ -19,7 +22,7 @@ php:
 env:
  global:
   - IGNORE_PATHS=amd/src/d3.js,amd/src/mersennetwister.js,amd/src/nouislider.js,javascript/d3,javascript/MersenneTwister,javascript/noUiSlider,javascript/d3.geom.concaveHull
-  - MOODLE_BRANCH=MOODLE_38_STABLE
+  - MOODLE_BRANCH=MOODLE_34_STABLE
  matrix:
   - DB=pgsql
   - DB=mysqli
@@ -44,7 +47,7 @@ script:
   - moodle-plugin-ci validate
   - moodle-plugin-ci savepoints
   - moodle-plugin-ci mustache
-  - moodle-plugin-ci grunt || ["$MOODLE_BRANCH"='master']
+  - moodle-plugin-ci grunt
   - moodle-plugin-ci phpdoc
   - moodle-plugin-ci phpunit
   - moodle-plugin-ci behat
