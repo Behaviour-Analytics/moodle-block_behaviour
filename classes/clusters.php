@@ -173,7 +173,7 @@ class clusters {
                            AND userid = :userid
                            AND coordsid = :coordsid
                            AND studentid $insql";
-                
+
                 $studentcentroids = $DB->get_records_sql($sql, $allparams);
 
                 self::dbug("Num of members: ".count($studentcentroids));
@@ -281,7 +281,7 @@ class clusters {
                         'clusternum'   => $clusternum,
                         'centroidx'    => $x,
                         'centroidy'    => $y,
-                        'usegeometric' => $usegeometric
+                        'usegeometric' => $usegeo
                     );
                 }
 

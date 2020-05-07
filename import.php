@@ -160,11 +160,10 @@ class import_form extends moodleform {
      * Function to build the logs from a file exported through the plugin.
      *
      * @param array $imported The imported records
-     * @param array $modtypes The differrent module type names
      * @param array $courseinfo The modules ids
      * @return array
      */
-    private function get_logs_from_plugin_export(&$imported, &$modtypes, &$courseinfo) {
+    private function get_logs_from_plugin_export(&$imported, &$courseinfo) {
 
         $logs = [];
 

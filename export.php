@@ -92,7 +92,7 @@ function get_current_logs(&$courseid, &$includecurrent) {
     // Get logs for currently enroled students.
     $inparams = array_merge($params, $inparams);
     $currentlogs = $DB->get_records_sql($sql, $inparams);
-    
+
     return $currentlogs;
 }
 
@@ -103,7 +103,7 @@ function get_current_logs(&$courseid, &$includecurrent) {
  * @param boolean $includepast Whether or not to include past logs
  * @return array
  */
-function get_current_logs(&$courseid, &$includepast) {
+function get_past_logs(&$courseid, &$includepast) {
     global $DB;
 
     if (!$includepast) {
@@ -153,8 +153,6 @@ function get_current_logs(&$courseid, &$includepast) {
  */
 function export_logs($courseid, $includepast, $includecurrent, $course, $cli = false) {
 
-    global $DB;
-
     $currentlogs = get_current_logs($courseid, $includecurrent);
 
     $pastlogs = get_past_logs($courseid, $includepast);
@@ -200,7 +198,7 @@ function export_logs($courseid, $includepast, $includecurrent, $course, $cli = f
     $module = null;
     reset($logs);
 
-    foreach ($logs as $key => $value) {
+    foreach ($logs as $value) {
 
         // Get module type and name from module id.
         if (! isset($courseinfo[$value->contextinstanceid])) {
