@@ -14,8 +14,6 @@ cache:
     - $HOME/.npm
 
 php:
- - 7.1
- - 7.2
  - 7.3
 
 env:
@@ -46,8 +44,8 @@ script:
   - moodle-plugin-ci validate
   - moodle-plugin-ci savepoints
   - moodle-plugin-ci mustache
-  - moodle-plugin-ci grunt
   - moodle-plugin-ci grunt -t uglify:amd
+  - moodle-plugin-ci grunt
   - moodle-plugin-ci phpdoc
   - moodle-plugin-ci phpunit
   - moodle-plugin-ci behat
