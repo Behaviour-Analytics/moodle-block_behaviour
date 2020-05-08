@@ -165,10 +165,10 @@ class clusters {
 
                 // Build the query.
                 list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
-                $allparams = array_merge(['table' => $table], $params, $inparams);
+                $allparams = array_merge($params, $inparams);
 
                 // Get the current student centroids.
-                $sql = "SELECT * FROM :table
+                $sql = "SELECT * FROM $table
                          WHERE courseid = :courseid
                            AND userid = :userid
                            AND coordsid = :coordsid
