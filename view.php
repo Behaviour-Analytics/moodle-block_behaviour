@@ -380,7 +380,6 @@ $PAGE->set_url('/blocks/behaviour/view.php', array('id' => $course->id));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // CSS.
-$PAGE->requires->css('/blocks/behaviour/css/styles.css');
 $PAGE->requires->css('/blocks/behaviour/javascript/noUiSlider/distribute/nouislider.min.css');
 
 // Language strings.
