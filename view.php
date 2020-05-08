@@ -504,7 +504,7 @@ function get_node_data($coordsid, $userid) {
     }
 
     // Make the node information.
-    $nodes  = []; $numnodes = 0;
+    $nodes = []; $numnodes = 0;
     foreach ($records as $row) {
 
         if ($row->xcoord != 0 && $row->ycoord != 0) {

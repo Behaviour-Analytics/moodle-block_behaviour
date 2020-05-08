@@ -58,7 +58,7 @@ $userid = $USER->id;
 $nodes = json_decode($nodedata);
 
 // Build new records.
-$data = []; $nds = []; $scale; $module;
+$data = []; $nds = []; $scale = 1.0; $module = null;
 $coordsid = $nodes->time;
 
 foreach ($nodes as $key => $value) {

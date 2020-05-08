@@ -135,7 +135,7 @@ function get_past_logs(&$courseid, &$includepast) {
         'contextmodule' => CONTEXT_MODULE
     );
 
-    $inparams - array_merge($params, $inparams);
+    $inparams = array_merge($params, $inparams);
     $pastlogs = $DB->get_records_sql($sql, $inparams);
 
     return $pastlogs;
