@@ -34,46 +34,71 @@ defined('MOODLE_INTERNAL') || die();
 
 require_once($CFG->dirroot . '/user/lib.php');
 
-// Settings header.
-$settings->add(new admin_setting_heading(
-    'headerconfig',
-    get_string('adminheader', 'block_behaviour'),
-    get_string('admindesc', 'block_behaviour')
-));
+if ($ADMIN->fulltree) {
 
-// Get the courses for which the plugin is installed.
-$courses = $DB->get_records('block_behaviour_installed');
+    // Settings header.
+    $settings->add(new admin_setting_heading(
+        'headerconfig',
+        get_string('adminheader', 'block_behaviour'),
+        get_string('admindesc', 'block_behaviour')
+    ));
 
-foreach ($courses as $course) {
+    // Get the courses for which the plugin is installed.
+    $courses = $DB->get_records('block_behaviour_installed');
 
-    // Get the human readable course name.
-    $coursename = $DB->get_record('course', array('id' => $course->courseid), 'shortname');
+    $courseids = [];
+    foreach ($courses as $course) {
+        $courseids[] = $course->courseid;
+    }
 
-    // Get the non-student users for this course
-    // 0 everyone, 1 manager, 2 ?creator?, 3 teacher, 4 non-editing, 5 student.
-    $roleids = [ 1, 2, 3, 4 ];
-    foreach ($roleids as $roleid) {
+    list($insql, $inparams) = $DB->get_in_or_equal($courseids);
+    $sql = "SELECT id, shortname FROM {course} WHERE id $insql;";
+    $courses = $DB->get_records_sql($sql, $inparams);
 
-        $participants = user_get_participants($course->courseid, 0, 0, $roleid, 0, 0, []);
+    // Get the roleid for students.
+    $studentroleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
 
-        foreach ($participants as $participant) {
+    // Process each course.
+    foreach ($courses as $course) {
 
-            // Get the user's username.
-            $user = $DB->get_record('user', array('id' => $participant->id), 'firstname, lastname');
+        // Determine non student users.
+        $everyone = user_get_participants($course->id, 0, 0, 0, 0, 0, []);
+        $students = user_get_participants($course->id, 0, 0, $studentroleid, 0, 0, []);
+
+        $studentids = [];
+        foreach ($students as $student) {
+            $studentids[$student->id] = 1;
+        }
+
+        $users = [];
+        foreach ($everyone as $one) {
+            if (!isset($studentids[$one->id])) {
+                $users[] = $one->id;
+            }
+        }
+
+        // Get user ids and names.
+        list($insql, $inparams) = $DB->get_in_or_equal($users);
+        $sql = "SELECT id, firstname, lastname FROM {user} WHERE id $insql;";
+        $users = $DB->get_records_sql($sql, $inparams);
+
+        // Parameters for get_string() call.
+        $params = array('coursename' => $course->shortname);
+
+        // Process users.
+        foreach ($users as $user) {
+
             $username = $user->firstname . ' ' . $user->lastname;
-
-            $params = array(
-                'username'   => $username,
-                'coursename' => $coursename->shortname
-            );
+            $params['username'] = $username;
 
             // Add the checkbox for this course for this user.
             $settings->add(new admin_setting_configcheckbox(
-                'block_behaviour/c_'.$course->courseid.'_p_'.$participant->id,
-                $coursename->shortname.' '.$username,
+                'block_behaviour/c_'.$course->id.'_p_'.$user->id,
+                $course->shortname.' '.$username,
                 get_string('researchrole', 'block_behaviour', $params),
                 '0'
             ));
+
         }
     }
 }
