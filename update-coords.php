@@ -33,6 +33,7 @@
 require_once(__DIR__.'/../../config.php');
 require_once("$CFG->libdir/moodlelib.php");
 require_once("$CFG->libdir/sessionlib.php");
+require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -41,7 +42,7 @@ $nodedata = required_param('data', PARAM_RAW);
 
 require_sesskey();
 
-$course = $DB->get_record('course', array('id' => $courseid), "*", MUST_EXIST);
+$course = get_course($courseid);
 
 require_login($course);
 $context = context_course::instance($courseid);
@@ -58,7 +59,9 @@ $userid = $USER->id;
 $nodes = json_decode($nodedata);
 
 // Build new records.
-$data = []; $nds = []; $scale = 1.0; $module = null;
+$data = [];
+$nds = [];
+$scale = 1.0;
 $coordsid = $nodes->time;
 
 foreach ($nodes as $key => $value) {
@@ -67,7 +70,7 @@ foreach ($nodes as $key => $value) {
     if ($key == 'scale') {
         $scale = $value;
     } else if ($key == 'module') {
-        $module = $value;
+        continue;
     } else if ($key == 'time') {
         continue;
     } else {
@@ -114,7 +117,7 @@ foreach ($logs as $log) {
     // If we have processed all this student's logs, create or update the centroid record.
     if ($studentid != $log->userid) {
 
-        update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
+        block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
 
         // Reset values for next student.
         $x = 0; $y = 0; $n = 0;
@@ -132,7 +135,7 @@ foreach ($logs as $log) {
     }
 }
 // Insert record for last studentid.
-update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
+block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
 
 // Update decomposed centroids.
 $records = [];
@@ -153,33 +156,4 @@ foreach ($clicks as $studentid => $data) {
 $DB->insert_records('block_behaviour_centres', $records);
 
 die('Node coordinates and centroids updated at '.time());
-
-/**
- * Called to update a student's centroid value.
- *
- * @param int $courseid The course id
- * @param int $userid The teacher id
- * @param int $studentid The student id
- * @param int $coordsid The id of the node positions
- * @param float $x The summed x coordinate values
- * @param float $y The summed y coordinate values
- * @param int $n The number of nodes to include in calculation
- */
-function update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n) {
-    global $DB;
-
-    // New DB table values.
-    $params = array(
-        'courseid'  => $courseid,
-        'userid'    => $userid,
-        'studentid' => $studentid,
-        'coordsid'  => $coordsid,
-        'totalx'    => $x,
-        'totaly'    => $y,
-        'numnodes'  => $n,
-        'centroidx' => $x / $n,
-        'centroidy' => $y / $n
-    );
-    $DB->insert_record('block_behaviour_centroids', $params);
-}
 

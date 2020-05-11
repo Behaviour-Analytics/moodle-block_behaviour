@@ -33,7 +33,7 @@ $courseid = required_param('cid', PARAM_INT);
 
 require_sesskey();
 
-$course = $DB->get_record('course', array('id' => $courseid), "*", MUST_EXIST);
+$course = get_course($courseid);
 
 require_login($course);
 $context = context_course::instance($courseid);

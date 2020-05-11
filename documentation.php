@@ -29,7 +29,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
 
-$course = $DB->get_record('course', array('id' => $id), "*", MUST_EXIST);
+$course = get_course($id);
 require_login($course);
 
 $context = context_course::instance($course->id);

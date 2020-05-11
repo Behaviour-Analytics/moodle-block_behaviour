@@ -34,7 +34,7 @@ define('CLI_SCRIPT', true);
 
 require(__DIR__.'/../../../config.php');
 require_once($CFG->libdir.'/clilib.php');
-require_once($CFG->dirroot.'/blocks/behaviour/export.php');
+require_once($CFG->dirroot.'/blocks/behaviour/locallib.php');
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -57,8 +57,7 @@ try {
     $course = get_course($courseid);
 } catch (Exception $e) {
     // ... or print error message.
-    echo get_string('invalidcourse', 'block_behaviour', $courseid).PHP_EOL;
-    die();
+    die(get_string('invalidcourse', 'block_behaviour', $courseid).PHP_EOL);
 }
 
 // Ensure we are exporting logs.
@@ -86,7 +85,7 @@ if ($argv[INCLUDE_CURRENT] == '1' ||
 }
 
 // No logs to export? Nothing to do.
-if (! $includecurrent && ! $includepast) {
+if (!$includecurrent && !$includepast) {
     die(get_string('nullexport', 'block_behaviour').PHP_EOL);
 }
 
@@ -102,8 +101,7 @@ if ($argc > 4) {
 
     // Does the file already exist? Do not replace.
     if (file_exists($name)) {
-        echo get_string('alreadyexists', 'block_behaviour', $name).PHP_EOL;
-        die();
+        die(get_string('alreadyexists', 'block_behaviour', $name).PHP_EOL);
     }
 
     $filename = $name;
@@ -125,9 +123,10 @@ if ($argc > 4) {
     $filename = get_string('exportlogprefix', 'block_behaviour').$name.$append.'.json';
 }
 
-echo get_string('exportcliout', 'block_behaviour', $filename).PHP_EOL;
-
-// From export.php, get the logs and write the export file.
-$out = export_logs($courseid, $includepast, $includecurrent, $course, true);
+// Get the logs and write the export file.
+$exporter = new block_behaviour_exporter();
+$out = $exporter->block_behaviour_export_logs($courseid, $includepast, $includecurrent, $course, true);
 
 file_put_contents($filename, json_encode($out));
+
+die(get_string('exportcliout', 'block_behaviour', $filename).PHP_EOL);

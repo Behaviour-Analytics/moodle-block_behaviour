@@ -48,7 +48,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
      * Debugging flag
      * @var boolean $dodebug
      */
-    private static $dodebug = false;
+    private static $dodebug = true;
 
     /**
      * Function to print out a debugging message or other variable.
@@ -483,7 +483,310 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
         // Update clusters for each graph configuration (teacher).
         foreach ($teachers as $teacher) {
-            \block_behaviour\clusters::update_clusters($courseid, $teacher);
+            $this->update_the_clusters($courseid, $teacher);
         }
+    }
+
+    /**
+     * Called to update the clustering marked for incremental processing. This is a
+     * multi-stage update. First, the clusters table is queried to get the cluster
+     * results that need to be updated. For each of these clustering runs, the
+     * members must be retrieved to ensure only the same students are used in the
+     * recalculation. Then, the membership status is recalculated based on the
+     * distance between each student centroid and each cluster centroid. Finally,
+     * the new cluster centroids are calculated based on the new membership.
+     *
+     * @param int $courseid The course id
+     * @param int $teacher The teacher id
+     */
+    private function update_the_clusters($courseid, $teacher) {
+        global $DB;
+
+        // Get the different graph configurations for this course and user.
+        $params = array(
+            'courseid'  => $courseid,
+            'userid'    => $teacher,
+            'iteration' => -1
+        );
+        $coordids = $DB->get_records('block_behaviour_clusters', $params, '', 'distinct coordsid');
+
+        self::dbug("Update clusters: ".$courseid." ".$teacher." ".count($coordids));
+
+        // For each graph configuration.
+        foreach ($coordids as $run) {
+            self::dbug("Configuration: ".$run->coordsid);
+
+            // Get the different clustering runs.
+            $params['coordsid'] = $run->coordsid;
+            $clusterids = $DB->get_records('block_behaviour_clusters', $params, '', 'distinct clusterid');
+
+            reset($clusterids);
+            $counter = 0;
+
+            // Process each clustering run.
+            while (key($clusterids) !== null) {
+                $cluster = current($clusterids);
+
+                // Avoid infinite loops.
+                if ($counter++ > 100) {
+                    next($clusterids);
+                    $counter = 0;
+                    continue;
+                }
+
+                // Get the iteration and cluster centroids.
+                unset($params['iteration']);
+                $params['clusterid'] = $cluster->clusterid;
+
+                $iteration = $DB->get_record('block_behaviour_clusters', $params, 'min(iteration) as min')->min;
+                $params['iteration'] = $iteration;
+
+                $clusters = $DB->get_records('block_behaviour_clusters', $params);
+
+                self::dbug("Cluster: ".$cluster->clusterid." ".$iteration);
+
+                // Get all members for that clusterid.
+                $params['iteration'] = -1;
+                $members = $DB->get_records('block_behaviour_members', $params);
+
+                // Determine whether to use geometric or decomposed centroids.
+                reset($clusters);
+                $usegeo = $clusters[key($clusters)]->usegeometric;
+
+                // Get clusters for those members.
+                list($newclusters, $newmembers, $clusteroids) = $this->get_new_clusters($members, $clusters, $params, $usegeo);
+
+                // Get new data for clusters and members.
+                list($memberdata, $clusterdata, $redoiteration, $newclusteroids) =
+                    $this->get_cluster_data($newclusters, $newmembers, $usegeo, $params, $cluster->clusterid, $iteration);
+
+                // Update tables.
+                if (count($clusterdata) > 0) {
+                    $DB->insert_records('block_behaviour_clusters', $clusterdata);
+                }
+                if (count($memberdata) > 0) {
+                    $DB->insert_records('block_behaviour_members', $memberdata);
+                }
+
+                // Check for convergence.
+                if (!$redoiteration) {
+                    foreach ($clusteroids as $num => $clusteroid) {
+                        $epsilon = 0.000001;
+
+                        if (!isset($newclusteroids[$num]) ||
+                                abs($clusteroid['x'] - $newclusteroids[$num]['x']) > $epsilon ||
+                                abs($clusteroid['y'] - $newclusteroids[$num]['y']) > $epsilon) {
+
+                            // Not converged, run another iteration of this clusterid.
+                            $redoiteration = true;
+                            self::dbug("Not cnverged, redo iteration: ".$iteration);
+                            break;
+                        }
+                    }
+                }
+                // Move on or repeat iteration?
+                if (!$redoiteration) {
+                    next($clusterids);
+                    $counter = 0;
+                }
+            }
+            // Reset for next round.
+            unset($params['clusterid']);
+            $params['iteration'] = -1;
+        }
+    }
+
+    /**
+     * Called to calculate the new clusters and membership from the old.
+     *
+     * @param array $members The old cluster members
+     * @param array $clusters The old clusters
+     * @param array $params The query parameters
+     * @param int $usegeo To use geometric centroids (1) or not (0)
+     * @return array
+     */
+    private function get_new_clusters(&$members, &$clusters, &$params, $usegeo) {
+        global $DB;
+
+        // Get centroids for these members.
+        $oars = [];
+        foreach ($members as $member) {
+            $oars[] = $member->studentid;
+        }
+
+        self::dbug('Number of members: ' . count($members).' '.count($oars));
+
+        // Set up new clusters array.
+        $newclusters = [];
+        foreach ($clusters as $clustr) {
+            $newclusters[$clustr->clusternum] = [];
+        }
+        unset($clustr);
+
+        // Store the current clustering centroids.
+        $clusteroids = [];
+        reset($clusters);
+        foreach ($clusters as $clustr) {
+            $clusteroids[$clustr->clusternum] = array(
+                'x' => $clustr->centroidx,
+                'y' => $clustr->centroidy
+            );
+        }
+        unset($clustr);
+
+        unset($params['iteration']);
+        unset($params['clusterid']);
+
+        // Determine whether to use geometric or decomposed centroids.
+        $table = $usegeo == 1 ? '{block_behaviour_centroids}' : '{block_behaviour_centres}';
+
+        // Build the query.
+        list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
+        $allparams = array_merge($params, $inparams);
+
+        // Get the current student centroids.
+        $sql = "SELECT * FROM $table
+                 WHERE courseid = :courseid
+                   AND userid = :userid
+                   AND coordsid = :coordsid
+                   AND studentid $insql";
+
+        $studentcentroids = $DB->get_records_sql($sql, $allparams);
+
+        self::dbug("Num of student centroids: ".count($studentcentroids));
+
+        $newmembers = [];
+        // Recalculate membership based on current cluster coords.
+        foreach ($studentcentroids as $centroid) {
+
+            $clusternum = -1;
+            $min = PHP_INT_MAX;
+
+            // Find cluster centroid closest to the student centroid.
+            reset($clusters);
+            foreach ($clusters as $clustr) {
+
+                $dx = $centroid->centroidx - $clustr->centroidx;
+                $dy = $centroid->centroidy - $clustr->centroidy;
+                $d = sqrt($dx * $dx + $dy * $dy);
+
+                if ($d < $min) {
+                    $clusternum = $clustr->clusternum;
+                    $min = $d;
+                }
+            }
+            // Assign student to new cluster.
+            $newclusters[$clusternum][] = $centroid;
+            $newmembers[$centroid->studentid] = array(
+                'x' => $centroid->centroidx,
+                'y' => $centroid->centroidy
+            );
+        }
+
+        return [$newclusters, $newmembers, $clusteroids];
+    }
+
+    /**
+     * Called to build the new clusters and membership data for DB insertion.
+     *
+     * @param array $newclusters The new clusters
+     * @param array $newmembers The new cluster members
+     * @param int $usegeo To use geometric centroids (1) or not (0)
+     * @param array $params Some DB query parameters
+     * @param int $clusterid The id for this cluster
+     * @param int $iteration The current iteration value
+     * @return array
+     */
+    private function get_cluster_data(&$newclusters, &$newmembers, $usegeo, &$params, $clusterid, $iteration) {
+
+        $redoiteration = false;
+        $clusterdata = [];
+        $memberdata = [];
+
+        // Recalculate cluster coords based on membership centroids.
+        $newclusteroids = [];
+        foreach ($newclusters as $clusternum => $clustrs) {
+
+            $tx = 0;
+            $ty = 0;
+            $n = 0;
+            foreach ($clustrs as $member) {
+
+                $tx += $member->centroidx;
+                $ty += $member->centroidy;
+                $n++;
+
+                // Data for members table.
+                $memberdata[] = (object) array(
+                    'courseid'   => $params['courseid'],
+                    'userid'     => $params['userid'],
+                    'coordsid'   => $params['coordsid'],
+                    'clusterid'  => $clusterid,
+                    'iteration'  => $iteration - 1,
+                    'clusternum' => $clusternum,
+                    'studentid'  => $member->studentid,
+                    'centroidx'  => $member->centroidx,
+                    'centroidy'  => $member->centroidy
+                );
+            }
+
+            // Might not be any members in the cluster.
+            if ($n == 0) {
+                // Need to run another iteration of this clusterid.
+                if (!$redoiteration) {
+                    $redoiteration = true;
+                    self::dbug("No members, redo iteration: ".$iteration);
+                }
+
+                // Determine max and min member coordinates.
+                $maxx = 0;
+                $maxy = 0;
+                $minx = 0;
+                $miny = 0;
+                foreach ($newmembers as $membercoords) {
+
+                    if ($membercoords['x'] > $maxx) {
+                        $maxx = $membercoords['x'];
+                    } else if ($membercoords['x'] < $minx) {
+                        $minx = $membercoords['x'];
+                    }
+
+                    if ($membercoords['y'] > $maxy) {
+                        $maxy = $membercoords['y'];
+                    } else if ($membercoords['y'] < $miny) {
+                        $miny = $membercoords['y'];
+                    }
+                }
+
+                // Give the memberless cluster random coordinates.
+                $n = 1000000;
+                $maxx *= $n;
+                $minx *= $n;
+                $maxy *= $n;
+                $miny *= $n;
+                $tx = rand($minx, $maxx);
+                $ty = rand($miny, $maxy);
+            }
+
+            // Store the new clustering centroid coordinates.
+            $x = $tx / $n;
+            $y = $ty / $n;
+            $newclusteroids[$clusternum] = array('x' => $x, 'y' => $y);
+
+            // Data for clusters table.
+            $clusterdata[] = (object) array(
+                'courseid'     => $params['courseid'],
+                'userid'       => $params['userid'],
+                'coordsid'     => $params['coordsid'],
+                'clusterid'    => $clusterid,
+                'iteration'    => $iteration - 1,
+                'clusternum'   => $clusternum,
+                'centroidx'    => $x,
+                'centroidy'    => $y,
+                'usegeometric' => $usegeo
+            );
+        }
+
+        return [$memberdata, $clusterdata, $redoiteration, $newclusteroids];
     }
 }

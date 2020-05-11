@@ -31,9 +31,8 @@
  */
 
 defined('MOODLE_INTERNAL') || die();
-require_once("$CFG->libdir/formslib.php");
 require_once("$CFG->libdir/sessionlib.php");
-require_once("$CFG->dirroot/blocks/behaviour/import.php");
+require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 
 /**
  * The block itself.
@@ -141,7 +140,7 @@ class block_behaviour extends block_base {
 
         // Export form.
         $url = new moodle_url('/blocks/behaviour/export-web.php', array('courseid' => $COURSE->id));
-        $exform = new export_form($url, null, 'post', 'target', array('id' => "export-form"));
+        $exform = new block_behaviour_export_form($url, null, 'post', 'target', array('id' => "export-form"));
         $this->content->text .= $exform->render();
 
         $this->content->text .= html_writer::empty_tag('br');
@@ -152,12 +151,12 @@ class block_behaviour extends block_base {
 
         // Import form.
         $url = new moodle_url('/course/view.php', array('id' => $COURSE->id));
-        $imform = new import_form($url, null, 'post', 'target', array('id' => "import-form"));
+        $imform = new block_behaviour_import_form($url, null, 'post', 'target', array('id' => "import-form"));
 
         // Form has been submitted, import the file and store the result.
         if ($imform->get_data()) {
 
-            $returned = $imform->import($context);
+            $returned = $imform->block_behaviour_import($context);
             $result = $DB->get_record('block_behaviour_installed', array('courseid' => $COURSE->id));
             $DB->update_record('block_behaviour_installed', (object) array(
                 'id'           => $result->id,
@@ -215,33 +214,5 @@ class block_behaviour extends block_base {
      */
     public function has_config() {
         return true;
-    }
-}
-
-/**
- * Class to make the export form.
- *
- * @package block_behaviour
- * @author Ted Krahn
- * @copyright 2019 Athabasca University
- * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
- */
-class export_form extends moodleform {
-    /**
-     * Add elements to form. There are two checkboxes and a submit button.
-     */
-    public function definition() {
-
-        $mform = $this->_form; // Don't forget the underscore!
-
-        $clabel = get_string('exportcurlabel', 'block_behaviour').'&nbsp';
-        $mform->addElement('checkbox', 'current', '', $clabel, array('id' => "current-box"));
-
-        $plabel = get_string('exportpastlabel', 'block_behaviour');
-        $mform->addElement('checkbox', 'past', '', $plabel, array('id' => "past-box"));
-
-        $mform->addElement('html', '<br\>');
-
-        $this->add_action_buttons(false, get_string('exportbutlabel', 'block_behaviour'));
     }
 }

@@ -30,7 +30,7 @@
 
 require_once(__DIR__.'/../../config.php');
 require_once($CFG->dirroot . '/lib/moodlelib.php');
-require_once('export.php');
+require_once($CFG->dirroot . '/blocks/behaviour/locallib.php');
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -64,7 +64,7 @@ if (!$includecurrent && !$includepast) {
 
 // Get course id and ensure course exists.
 $id = required_param('courseid', PARAM_INT);
-$course = $DB->get_record('course', array('id' => $id), "*", MUST_EXIST);
+$course = get_course($id);
 
 // Ensure user has required capabilities.
 require_login($course);
@@ -76,12 +76,15 @@ $name = str_replace(' ', '_', $course->shortname);
 $filename = get_string('exportlogprefix', 'block_behaviour').$name.$append;
 
 // From export.php, get the log records.
-$out = export_logs($id, $includepast, $includecurrent, $course);
+$exporter = new block_behaviour_exporter();
+$out = $exporter->block_behaviour_export_logs($id, $includepast, $includecurrent, $course, false);
+
+$encoded = json_encode($out);
 
 // Make client-side download window.
 header("Content-Disposition: attachment; filename=".$filename."_".count($out).".json");
 header("Content-Type: application/json");
-header("Content-Length: " . strlen(json_encode($out)));
+header("Content-Length: " . strlen($encoded));
 header("Connection: close");
 
-echo json_encode($out);
+echo $encoded;
