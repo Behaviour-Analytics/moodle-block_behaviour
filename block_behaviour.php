@@ -61,12 +61,11 @@ class block_behaviour extends block_base {
      * @return stdClass
      */
     public function get_content() {
+        global $COURSE, $DB, $PAGE;
 
         if ($this->content !== null) {
             return $this->content;
         }
-
-        global $COURSE, $DB, $PAGE;
 
         // Do not show block for student users.
         $context = context_course::instance($COURSE->id);
