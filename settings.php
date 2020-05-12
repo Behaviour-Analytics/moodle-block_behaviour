@@ -77,6 +77,11 @@ if ($ADMIN->fulltree) {
             }
         }
 
+        // Sanity check. If block installed, but no users enroled, then errors.
+        if (count($users) == 0) {
+            continue;
+        }
+
         // Get user ids and names.
         list($insql, $inparams) = $DB->get_in_or_equal($users);
         $sql = "SELECT id, firstname, lastname FROM {user} WHERE id $insql;";
