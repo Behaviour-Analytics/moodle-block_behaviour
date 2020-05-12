@@ -51,6 +51,11 @@ if ($ADMIN->fulltree) {
         $courseids[] = $course->courseid;
     }
 
+    // Sanit check. When first installed, block is not used anywhere, therefore no settings.
+    if (count($courseids) == 0) {
+        return;
+    }
+
     list($insql, $inparams) = $DB->get_in_or_equal($courseids);
     $sql = "SELECT id, shortname FROM {course} WHERE id $insql;";
     $courses = $DB->get_records_sql($sql, $inparams);
