@@ -190,7 +190,7 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
 
         if (isset($nodes[$row->moduleid])) {
 
-            $users[$row->userid] = $row->userid;
+            $users[$row->userid] = $indx;
             $logs[] = array(
                 'moduleId' => $row->moduleid,
                 'userId'   => $indx
@@ -199,7 +199,6 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     }
 
     $userinfo = [];
-    $indx = 0;
     reset($records);
 
     // Handle case where plugin is used in new course with no records
@@ -207,9 +206,9 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     if (count($records) == 0) {
         $userinfo[] = array('id' => 0, 'realId' => 0);
     } else {
-        foreach ($users as $student) {
+        foreach ($users as $studentid => $fakeid) {
 
-            $userinfo[] = array('id' => $indx++, 'realId' => $student);
+            $userinfo[] = array('id' => $fakeid, 'realId' => $studentid);
         }
     }
 
