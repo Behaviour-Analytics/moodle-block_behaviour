@@ -238,11 +238,11 @@
             modColours = {
                 'originalLinks': 'lightgrey', // Removed from colours[].
                 'grouping':      'black', // Removed from colours[].
-                'assignment':    'blue',
+                'assig':         'blue',
                 'quiz':          'red',
                 'forum':         'orange',
                 'file':          'green',
-                'external tool': 'yellow',
+                'lti':           'yellow',
                 'url':           'purple',
                 'book':          'magenta',
                 'page':          'cyan',
@@ -1964,6 +1964,10 @@
                 if (logs.length > 0) {
                     drawGraphNew(true);
                 }
+            });
+
+            users.sort(function(a, b) {
+                return a.id - b.id;
             });
 
             // Add users to the list.
