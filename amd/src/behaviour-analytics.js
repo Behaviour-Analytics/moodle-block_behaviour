@@ -238,10 +238,10 @@
             modColours = {
                 'originalLinks': 'lightgrey', // Removed from colours[].
                 'grouping':      'black', // Removed from colours[].
-                'assig':         'blue',
+                'assign':        'blue',
                 'quiz':          'red',
                 'forum':         'orange',
-                'file':          'green',
+                'resource':      'green',
                 'lti':           'yellow',
                 'url':           'purple',
                 'book':          'magenta',
