@@ -50,8 +50,6 @@ $PAGE->set_title(get_string('title', 'block_behaviour'));
 $PAGE->set_pagelayout('standard');
 $PAGE->set_heading(get_string('title', 'block_behaviour') . ' ' . get_string('docsanchor', 'block_behaviour'));
 
-$PAGE->requires->css('/blocks/behaviour/css/styles.css');
-
 // Output page.
 echo $OUTPUT->header();
 
