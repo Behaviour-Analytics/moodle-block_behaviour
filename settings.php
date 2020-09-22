@@ -32,7 +32,7 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once($CFG->dirroot . '/user/lib.php');
+require_once($CFG->dirroot . '/blocks/behaviour/locallib.php');
 
 if ($ADMIN->fulltree) {
 
@@ -67,8 +67,8 @@ if ($ADMIN->fulltree) {
     foreach ($courses as $course) {
 
         // Determine non student users.
-        $everyone = user_get_participants($course->id, 0, 0, 0, 0, 0, []);
-        $students = user_get_participants($course->id, 0, 0, $studentroleid, 0, 0, []);
+        $everyone = block_behaviour_get_participants($course->id, 0);
+        $students = block_behaviour_get_participants($course->id, $studentroleid);
 
         $studentids = [];
         foreach ($students as $student) {

@@ -32,7 +32,7 @@ namespace block_behaviour\task;
 
 defined('MOODLE_INTERNAL') || die();
 
-require_once("$CFG->dirroot/user/lib.php");
+require_once($CFG->dirroot . '/blocks/behaviour/locallib.php');
 
 /**
  * The task class.
@@ -155,7 +155,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
         // Get the current participants of this course for use in SQL.
         $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
-        $participants = user_get_participants($course->courseid, 0, 0, $roleid, 0, 0, []);
+        $participants = block_behaviour_get_participants($course->courseid, $roleid);
 
         foreach ($participants as $participant) {
             $oars[] = $participant->id;

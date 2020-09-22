@@ -391,6 +391,67 @@ function block_behaviour_update_student_centroid($courseid, $userid, $studentid,
 }
 
 /**
+ * Replacement for user/lib.php function user_get_participants(), if not exist.
+ * Older versions of Moodle do not have the function implemented as part of
+ * the user API. As of Moodle 3.9, the function is deprecated and the
+ * participants_search class is used instead.
+ *
+ * @param int $courseid The course id
+ * @param int $roleid The role id
+ * @return stdClass
+ */
+function block_behaviour_get_participants($courseid, $roleid) {
+    global $DB, $CFG;
+
+    require_once("$CFG->dirroot/user/lib.php");
+    $roleid = intval($roleid);
+
+    // For Moodle 3.9 and up, use the participants_search class.
+    if (file_exists("$CFG->dirroot/user/classes/table/participants_search.php")) {
+
+        $course = get_course($courseid);
+        $context = \context_course::instance($courseid);
+        $filterset = new \core_user\table\participants_filterset();
+
+        if ($roleid > 0) { // Roleid of 0 means all participants, i.e. no filter.
+            $filter = new \core_table\local\filter\integer_filter('roles', null, [$roleid]);
+            $filterset->add_filter($filter);
+        }
+
+        $search = new \core_user\table\participants_search($course, $context, $filterset);
+        return $search->get_participants();
+
+    } else if (function_exists('user_get_participants')) { // Moodles 3.3 - 3.8.
+        return user_get_participants($courseid, 0, 0, $roleid, 0, 0, []);
+
+    } else { // Older versions of Moodle.
+        $params = array(
+            'courseid' => $courseid,
+            'roleid' => $roleid
+        );
+
+        if ($roleid <= 0) { // Get all participants for this course.
+            $query = 'SELECT u.id, u.username, u.firstname, u.lastname
+                        FROM {user} u, {enrol} e, {user_enrolments} ue
+                       WHERE e.courseid = :courseid
+                         AND e.id = ue.enrolid
+                         AND ue.userid = u.id';
+
+        } else { // Only participants in this course with this roleid.
+            $query = 'SELECT distinct(u.id), u.username, u.firstname, u.lastname
+                        FROM {user} u, {enrol} e, {user_enrolments} ue, {role_assignments} ra
+                       WHERE e.courseid = :courseid
+                         AND e.id = ue.enrolid
+                         AND ue.userid = u.id
+                         AND ra.roleid = :roleid
+                         AND ra.userid = ue.userid';
+        }
+
+        return $DB->get_records_sql($query, $params);
+    }
+}
+
+/**
  * Class definition for export functionality.
  *
  * This class handles the exporting of log records. The functions contained do
@@ -453,7 +514,7 @@ class block_behaviour_exporter {
 
         // Get currently enroled students.
         $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
-        $participants = user_get_participants($courseid, 0, 0, $roleid, 0, 0, []);
+        $participants = block_behaviour_get_participants($courseid, $roleid);
 
         // Get the student id information.
         $oars = [];
@@ -493,7 +554,7 @@ class block_behaviour_exporter {
         }
 
         // Get all course participants.
-        $others = user_get_participants($courseid, 0, 0, 0, 0, 0, []);
+        $others = block_behaviour_get_participants($courseid, 0);
 
         // Get administrators.
         $admins = get_admins();
@@ -843,10 +904,10 @@ class block_behaviour_import_form extends moodleform {
 
         // Get current students.
         $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
-        $participants = user_get_participants($COURSE->id, 0, 0, $roleid, 0, 0, []);
+        $participants = block_behaviour_get_participants($COURSE->id, $roleid);
 
         // Get all course participants.
-        $everyone = user_get_participants($COURSE->id, 0, 0, 0, 0, 0, []);
+        $everyone = block_behaviour_get_participants($COURSE->id, 0);
 
         // Get administrators.
         $admins = get_admins();
