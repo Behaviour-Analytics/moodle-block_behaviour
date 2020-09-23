@@ -66,7 +66,7 @@ $globalmembers = null;
 $globalmanualmembers = null;
 $out = '';
 $debugcentroids = false;
-$version38 = $CFG->version >= 2019111800 ? true : false;
+$version36 = $CFG->version >= 2018120310 ? true : false;
 
 // Defaults in case there is no entry in scale table.
 list($scale, $coordsid) = block_behaviour_get_scale_data(0, $USER->id, $course);
@@ -430,7 +430,7 @@ $out['manualscript']   = (string) new moodle_url('/blocks/behaviour/update-manua
 $out['iframeurl']      = (string) new moodle_url('/');
 
 $out['sesskey'] = sesskey();
-$out['version38'] = $version38;
+$out['version36'] = $version36;
 
 // JavaScript.
 $PAGE->requires->js_call_amd('block_behaviour/modules', 'init');

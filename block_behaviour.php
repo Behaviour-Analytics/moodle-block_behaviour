@@ -61,7 +61,7 @@ class block_behaviour extends block_base {
      * @return stdClass
      */
     public function get_content() {
-        global $COURSE, $DB, $PAGE;
+        global $COURSE, $DB;
 
         if ($this->content !== null) {
             return $this->content;
@@ -78,8 +78,8 @@ class block_behaviour extends block_base {
 
             // ... create a record in the database.
             $DB->insert_record('block_behaviour_installed', array(
-                'courseid'     => $COURSE->id,
-                'lastsync'     => 0
+                'courseid' => $COURSE->id,
+                'lastsync' => 0
             ));
         }
 
@@ -108,15 +108,15 @@ class block_behaviour extends block_base {
         // Link to module node positioning.
         $this->content->text .= html_writer::tag('a', get_string("launchconfiguration", "block_behaviour"),
             array('href' => new moodle_url('/blocks/behaviour/view.php', array(
-                'id'          => $COURSE->id,
-                'pos'         => true
+                'id'  => $COURSE->id,
+                'pos' => true
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to the documentation.
         $this->content->text .= html_writer::tag('a', get_string("docsanchor", "block_behaviour"),
             array('href' => new moodle_url('/blocks/behaviour/documentation.php', array(
-                'id'     => $COURSE->id
+                'id' => $COURSE->id
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
@@ -179,8 +179,8 @@ class block_behaviour extends block_base {
             'nofile'    => get_string('nofile', 'block_behaviour'),
             'sesskey'   => sesskey(),
         );
-        $PAGE->requires->js(new moodle_url('/blocks/behaviour/javascript/forms.js'));
-        $PAGE->requires->js_init_call('init', array($out), true);
+        $this->page->requires->js(new moodle_url('/blocks/behaviour/javascript/forms.js'));
+        $this->page->requires->js_init_call('init', array($out), true);
 
         $this->content->footer = "";
         return $this->content;

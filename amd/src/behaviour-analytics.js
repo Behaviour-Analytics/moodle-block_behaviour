@@ -131,7 +131,7 @@
             iframeStaticPos, // Flag to place iframe at window edge/below node.
             iframeRight, // Flag to position an iframe on the right side.
             inIframe, // Flag to remove iframe or not.
-            version38, // Flag for iframe offset, different in 3.8.
+            version36, // Flag for log panel styling, and iframe offset, different in 3.6.
             convergenceDistance, // Mean distance between old centroids and new.
             dragEndTime, // Time dragging was stopped.
             dragstartedFunc, // Node drag started function.
@@ -174,7 +174,7 @@
             legendWidth = incoming.legendwidth;
             courseName = incoming.name;
             iframeURL = incoming.iframeurl;
-            version38 = incoming.version38;
+            version36 = incoming.version36;
             positioning = incoming.positioning;
             presetNodes = incoming.nodecoords;
             courseId = incoming.courseid;
@@ -247,6 +247,17 @@
                 'book':          'magenta',
                 'page':          'cyan',
                 'lesson':        'brown',
+                'data':          'coral',
+                'chat':          'maroon',
+                'choice':        'grey',
+                'feedback':      'lime',
+                'glossary':      'navy',
+                'survey':        'tan',
+                'wiki':          'teal',
+                'workshop':      'silver',
+                'scorm':         'tomato',
+                'imscp':         'lightpink',
+                'folder':        'peru',
             };
 
             centroidColours = ['blue', 'red', 'orange', 'green', 'yellow', 'brown',
@@ -795,7 +806,7 @@
             var rwidth = 150,
                 ifwidth = 304,
                 ifheight = 154;
-            var txt = node.type + '_' + node.name;
+            var txt = node.type + ': ' + node.name;
 
             if (iframeStaticPos) {
                 ifwidth = 0;
@@ -971,7 +982,7 @@
                 iframe.style.left = (rectX + gbb.x - (ifwidth / 2) + (rectW / 2)) + 'px';
             }
 
-            var yoffset = version38 ? 0 : 50;
+            var yoffset = version36 ? 0 : 50;
 
             // May need to be placed statically or moved up or remain under.
             if (iframeStaticPos) {
@@ -1631,6 +1642,11 @@
                 span,
                 section = -1;
 
+            // Sort the modules to ensure all sections are together.
+            modules.sort(function(a, b) {
+                return a.sect - b.sect;
+            });
+
             // Need a checkbox for each module node, grouped by section.
             modules.forEach(function(m) {
 
@@ -1653,7 +1669,7 @@
                     li.appendChild(ul);
                     rootUL.appendChild(li);
 
-                    section++;
+                    section = m.sect;
                 }
 
                 // Each module gets attached to its expandable section.
@@ -2704,7 +2720,10 @@
                     // Cluster slider has already been made, just reset everything.
                     document.getElementById('clustering').innerHTML = '&nbsp';
                     document.getElementById('cluster-text').innerHTML = ph;
+
                     document.getElementById('play-pause').innerHTML = '&#9654'; // 9654=play.
+                    document.getElementById('play-pause').disabled = true;
+                    document.getElementById('play-step').disabled = true;
 
                     document.getElementById('anim-controls').style.display = 'block';
                     document.getElementById('log-panel').style.display = 'block';
@@ -3711,6 +3730,7 @@
             button.innerHTML = '&#9654';
             button.value = 'play';
             clearInterval(clusterAnimInterval);
+            clusterAnimInterval = undefined;
         }
 
         /**
@@ -3939,12 +3959,14 @@
             playPause.id = 'play-pause';
             playPause.innerHTML = '&#9654'; // 9654=play.
             playPause.addEventListener('click', doPlayPause);
+            playPause.disabled = true;
 
             // Steppng clustering control button.
             var playStep = document.createElement('button');
             playStep.id = 'play-step';
             playStep.innerHTML = '&#9654&#9614'; // 9654=play, 9614=bar.
             playStep.addEventListener('click', doPlayStep.bind(this, playPause));
+            playStep.disabled = true;
 
             ctrlDiv.appendChild(playStep);
             ctrlDiv.appendChild(playPause);
@@ -3964,6 +3986,7 @@
             clearInterval(clusterAnimInterval);
             clusterAnimInterval = undefined;
             coordsData.clusterId = Date.now();
+            clusterSlider.removeAttribute('disabled');
 
             // Reset cluster slider.
             if (clusterSliderValue == 3) {
@@ -3980,6 +4003,8 @@
             // Reset displayed text.
             document.getElementById('clustering').innerHTML = '&nbsp';
             document.getElementById('play-pause').innerHTML = '&#9654'; // 9654=play.
+            document.getElementById('play-pause').disabled = true;
+            document.getElementById('play-step').disabled = true;
 
             if (document.getElementById('num-clusters')) {
                 document.getElementById('num-clusters').readOnly = false;
@@ -4041,11 +4066,14 @@
             if (!clusterAnimInterval) {
                 clusterAnimInterval = setInterval(runClusteringIter, 1000);
                 this.innerHTML = '&#9613&#9613'; // 9613=bar.
+                clusterSlider.setAttribute('disabled', true);
+
             } else {
                 // Pause.
                 clearInterval(clusterAnimInterval);
                 clusterAnimInterval = undefined;
                 this.innerHTML = '&#9654'; // 9654=play.
+                clusterSlider.removeAttribute('disabled');
             }
         }
 
@@ -4120,7 +4148,10 @@
 
                 clearInterval(clusterAnimInterval);
                 clusterAnimInterval = undefined;
+                clusterSlider.removeAttribute('disabled');
                 document.getElementById('play-pause').innerHTML = '&#9654';
+                document.getElementById('play-pause').disabled = true;
+                document.getElementById('play-step').disabled = true;
             }
         }
 
@@ -4778,6 +4809,7 @@
 
             // Add checkbox for geometric/decomposed centroid calculation.
             var cbox = document.createElement('input');
+            cbox.id = 'centroid-checkbox';
             cbox.type = 'checkbox';
             cbox.style = 'margin-top: 30px';
 
@@ -4844,6 +4876,11 @@
                     }
                     clusterSliderValue = 1;
                     clusteringCase1();
+
+                    // If not clustering, then enable centroid cehckbox.
+                    if (!clustering) {
+                        document.getElementsById('centroid-checkbox').disabled = false;
+                    }
                     break;
 
                 // Position 2 removes graph and scales student centroids.
@@ -4851,6 +4888,13 @@
 
                     clusterSliderValue = 2;
                     clusteringCase2();
+
+                    // Disable centroid checkbox.
+                    document.getElementsById('centroid-checkbox').disabled = true;
+
+                    // Disable play and step buttons.
+                    document.getElementById('play-pause').disabled = true;
+                    document.getElementById('play-step').disabled = true;
                     break;
 
                 // Position 3 allows selection of the number of clusters.
@@ -4870,6 +4914,15 @@
                             '" id="num-clusters" size="8" pattern="[0-9]{1,2}">';
 
                         document.getElementById('cluster-text').innerHTML = tb;
+                    }
+
+                    // Enable play and step buttons, unless reached convergence.
+                    document.getElementById('play-pause').disabled = false;
+                    document.getElementById('play-step').disabled = false;
+
+                    if (document.getElementById('clustering').innerHTML == langStrings.convergence) {
+                        document.getElementById('play-pause').disabled = true;
+                        document.getElementById('play-step').disabled = true;
                     }
                     break;
             }
@@ -5284,8 +5337,12 @@
                 document.execCommand('copy');
             });
 
-            copy.style.position = 'absolute';
-            copy.style.right = (legendWidth - 40) + 'px';
+            if (version36) {
+                copy.style.marginLeft = '10px';
+            } else {
+                copy.style.position = 'absolute';
+                copy.style.right = (legendWidth - 40) + 'px';
+            }
 
             lp.appendChild(copy);
 
@@ -5309,8 +5366,12 @@
                 mywindow.close();
             });
 
-            print.style.position = 'absolute';
-            print.style.right = (legendWidth - 100) + 'px';
+            if (version36) {
+                print.style.marginLeft = '10px';
+            } else {
+                print.style.position = 'absolute';
+                print.style.right = (legendWidth - 100) + 'px';
+            }
 
             lp.appendChild(print);
 
@@ -5328,9 +5389,11 @@
             logPanel.style.resize = 'none';
             logPanel.style.border = '2px solid black';
 
-            logPanel.style.position = 'absolute';
-            logPanel.style.right = '6px';
-            logPanel.style.top = '60px';
+            if (!version36) {
+                logPanel.style.position = 'absolute';
+                logPanel.style.right = '6px';
+                logPanel.style.top = '60px';
+            }
 
             lp.appendChild(logPanel);
         }
