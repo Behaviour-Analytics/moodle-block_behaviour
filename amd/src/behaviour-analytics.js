@@ -4878,7 +4878,7 @@
                     clusteringCase1();
 
                     // If not clustering, then enable centroid cehckbox.
-                    if (!clustering) {
+                    if (!clustering && document.getElementById('centroid-checkbox')) {
                         document.getElementById('centroid-checkbox').disabled = false;
                     }
                     break;
