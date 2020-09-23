@@ -4879,7 +4879,7 @@
 
                     // If not clustering, then enable centroid cehckbox.
                     if (!clustering) {
-                        document.getElementsById('centroid-checkbox').disabled = false;
+                        document.getElementById('centroid-checkbox').disabled = false;
                     }
                     break;
 
@@ -4890,7 +4890,7 @@
                     clusteringCase2();
 
                     // Disable centroid checkbox.
-                    document.getElementsById('centroid-checkbox').disabled = true;
+                    document.getElementById('centroid-checkbox').disabled = true;
 
                     // Disable play and step buttons.
                     document.getElementById('play-pause').disabled = true;
