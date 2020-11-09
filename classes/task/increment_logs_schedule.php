@@ -161,7 +161,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
             $oars[] = $participant->id;
         }
 
-        // Sanity check, might not be any students enroled.
+        // Sanity check, might not be any students enrolled.
         if (count($oars) == 0) {
             return;
         }
@@ -204,6 +204,29 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         $params = array('courseid' => $course->courseid);
         $teacherids = $DB->get_records('block_behaviour_coords', $params, '', 'distinct userid');
 
+        // Pull graph configurations from LORD tables as well, if installed.
+        $lordinstalled = false;
+        $lordparams = array('courseid' => $course->courseid);
+
+        if ($DB->record_exists('block', ['name' => 'lord'])) {
+            $lordinstalled = true;
+
+            $lordparams['iscustom'] = 1;
+            $lordlastcustom = $DB->get_record('block_lord_scales', $lordparams, 'max(coordsid) as coordsid');
+
+            $lordparams['iscustom'] = 0;
+            $lordlastsystem = $DB->get_record('block_lord_scales', $lordparams, 'max(coordsid) as coordsid');
+            unset($lordparams['iscustom']);
+
+            // When only clustering results are with LORD graph.
+            if (count($teacherids) == 0) {
+                self::dbug('Faking teacher IDs.');
+                $teacherids = [new \stdClass()];
+                $teacherids[0]->userid = 2;
+            }
+        }
+
+        // Process the teacher ids.
         foreach ($teacherids as $tid) {
 
             // Build module coordinates and teachers arrays.
@@ -220,16 +243,38 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
             // Determine if last coordinate id needs to be added.
             $addlast = true;
+            $addlordlastcustom = true;
+            $addlordlastsystem = true;
+
             foreach ($coordids as $coordid) {
                 if ($lastcoordid->coordsid == $coordid->coordsid) {
                     $addlast = false;
                     self::dbug('Not adding in last coordsid ' . $lastcoordid->coordsid);
-                    break;
+                }
+                if ($lordinstalled) {
+                    if ($lordlastcustom->coordsid == $coordid->coordsid) {
+                        $addlordlastcustom = false;
+                        self::dbug('Not adding in last LORD custom coordsid ' . $lordlastcustom->coordsid);
+                    }
+                    if ($lordlastsystem->coordsid == $coordid->coordsid) {
+                        $addlordlastsystem = false;
+                        self::dbug('Not adding in last LORD system coordsid ' . $lordlastsystem->coordsid);
+                    }
                 }
             }
             if ($addlast) {
                 self::dbug('Adding in last coordsid ' . $lastcoordid->coordsid);
                 $coordids[] = $lastcoordid;
+            }
+            if ($lordinstalled) {
+                if ($addlordlastcustom) {
+                    self::dbug('Adding in last LORD custom coordsid ' . $lordlastcustom->coordsid);
+                    $coordids[] = $lordlastcustom;
+                }
+                if ($addlordlastsystem) {
+                    self::dbug('Adding in last LORD system coordsid ' . $lordlastsystem->coordsid);
+                    $coordids[] = $lordlastsystem;
+                }
             }
 
             // Process each coordinate id.
@@ -241,6 +286,11 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                 unset($params['iteration']);
                 $coords = $DB->get_records('block_behaviour_coords', $params);
 
+                if (count($coords) == 0 && $lordinstalled) {
+                    $lordparams['changed'] = $coordid->coordsid;
+                    $coords = $DB->get_records('block_lord_coords', $lordparams);
+                }
+
                 self::dbug('Getting coords for teacher ' . $tid->userid . ' ' . $coordid->coordsid);
 
                 // Build the module coordinates array.
@@ -249,7 +299,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                     self::dbug($value->moduleid . ' ' . $value->visible);
 
                     if ($value->visible) {
-                        $modcoords[$value->userid][$coordid->coordsid][$value->moduleid] = array(
+                        $modcoords[$tid->userid][$coordid->coordsid][$value->moduleid] = array(
                             'x' => $value->xcoord,
                             'y' => $value->ycoord
                         );
@@ -259,6 +309,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                 }
             }
             unset($params['changed']);
+            unset($lordparams['changed']);
         }
     }
 
@@ -759,13 +810,13 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                 }
 
                 // Give the memberless cluster random coordinates.
-                $n = 1000000;
+                $n = 10000;
                 $maxx *= $n;
                 $minx *= $n;
                 $maxy *= $n;
                 $miny *= $n;
-                $tx = rand($minx, $maxx);
-                $ty = rand($miny, $maxy);
+                $tx = mt_rand($minx, $maxx);
+                $ty = mt_rand($miny, $maxy);
             }
 
             // Store the new clustering centroid coordinates.

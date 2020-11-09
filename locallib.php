@@ -65,30 +65,60 @@ function block_behaviour_get_course_info(&$course) {
 }
 
 /**
- * Get the node related data.
+ * Get the graph scale data.
  *
- * @param int $coordsid The id of the graph nodes position
- * @param int $userid The id of the user to get data for
- * @param stdClass $course The course object
+ * @param int $coordsid The graph configuration id
+ * @param string $table The table to query
+ * @param array $params The query parameters
  * @return array
  */
-function block_behaviour_get_node_data($coordsid, $userid, &$course) {
+function block_behaviour_get_graph_scale($coordsid, &$table, $params) {
     global $DB;
 
-    $records = null;
-    $params = array(
-        'courseid' => $course->id,
-        'userid'   => $userid
-    );
+    $scale = 1.0;
+    $scl = null;
 
-    if ($coordsid == 0) {
-        $records = $DB->get_records('block_behaviour_coords', $params, 'changed DESC');
-        if ($records) {
+    if ($coordsid == 0) { // Fishing for data.
+        $scl = $DB->get_records($table, $params, 'coordsid DESC');
+
+    } else { // Know there is data for this configuration.
+        $params['coordsid'] = $coordsid;
+        $scl = $DB->get_records($table, $params);
+    }
+
+    // Use table values, if exist.
+    if ($scl) {
+        $key = key($scl);
+        $scale = $scl[$key]->scale;
+        $coordsid = $scl[$key]->coordsid;
+    }
+
+    return array($scale, $coordsid);
+}
+
+/**
+ * Get the graph node data.
+ *
+ * @param int $coordsid The graph configuration id
+ * @param string $table The table to query
+ * @param array $params The query parameters
+ * @return array
+ */
+function block_behaviour_get_nodes($coordsid, &$table, $params) {
+    global $DB;
+
+    $records = [];
+
+    if ($coordsid == 0) { // Fishing for data.
+        $records = $DB->get_records($table, $params, 'changed DESC');
+
+        if (count($records) > 0) {
             $coordsid = $records[key($records)]->changed;
         }
-    } else {
+
+    } else { // Know there is data for this configuration.
         $params['changed'] = $coordsid;
-        $records = $DB->get_records('block_behaviour_coords', $params);
+        $records = $DB->get_records($table, $params);
     }
 
     // Make the node information.
@@ -110,42 +140,116 @@ function block_behaviour_get_node_data($coordsid, $userid, &$course) {
             break;
         }
     }
+
     return array($nodes, $numnodes);
 }
 
 /**
- * Get the scale related data.
+ * Get the graph scale and node data.
  *
- * @param int $coordsid The id of the graph nodes position
- * @param int $userid The id of the user to get data for
+ * @param int $coordsid The graph configuration id
+ * @param int $userid The users id
  * @param stdClass $course The course object
  * @return array
  */
-function block_behaviour_get_scale_data($coordsid, $userid, &$course) {
-    global $DB;
+function block_behaviour_get_scale_and_node_data($coordsid, $userid, &$course) {
 
-    $scale = 1.0;
-    $scl = null;
     $params = array(
         'courseid' => $course->id,
         'userid'   => $userid
     );
 
+    $table = 'block_behaviour_scales';
+    list($scale, $coordsid) = block_behaviour_get_graph_scale($coordsid, $table, $params);
+
+    $table = 'block_behaviour_coords';
+    list($nodes, $numnodes) = block_behaviour_get_nodes($coordsid, $table, $params);
+
+    return array($coordsid, $scale, $nodes, $numnodes);
+}
+
+/**
+ * Get the graph scale and node data from the LORD plugin.
+ *
+ * @param int $coordsid The graph configuration id
+ * @param int $userid The users id
+ * @param stdClass $course The course object
+ * @param int $iscustom Flag for using the manipulated LORD graph
+ * @return array
+ */
+function block_behaviour_get_lord_scale_and_node_data($coordsid, $userid, &$course, $iscustom) {
+
+    $table = 'block_lord_scales';
+
+    if ($coordsid == 0) { // Fishing for data.
+
+        // Get the scale data.
+        $params = array(
+            'courseid' => $course->id,
+            'iscustom' => $iscustom
+        );
+        list($scale, $coordsid) = block_behaviour_get_graph_scale($coordsid, $table, $params);
+
+        if ($coordsid == 0 && $iscustom == 1) { // No custom graph to use, try system graph.
+            $iscustom = 0;
+            $params['iscustom'] = 0;
+            list($scale, $coordsid) = block_behaviour_get_graph_scale($coordsid, $table, $params);
+        }
+
+        if ($coordsid == 0) { // No system graph either, nothing to use from LORD.
+            return block_behaviour_get_scale_and_node_data($coordsid, $userid, $course);
+        }
+
+    } else { // Know there is graph data for this configuration id.
+        $params = ['courseid' => $course->id];
+        list($scale, $coordsid) = block_behaviour_get_graph_scale($coordsid, $table, $params);
+
+        if ($scale == 1) { // Clustering results are all from Behaviour Analytics graphs.
+            list($scale2, $coordsid2) = block_behaviour_get_graph_scale(0, $table, $params);
+
+            if ($scale2 == 1) { // ...And there is no LORD graph generated.
+                return block_behaviour_get_scale_and_node_data($coordsid, $userid, $course);
+            }
+        }
+    }
+
+    $params = array(
+        'courseid' => $course->id,
+        'changed' => $coordsid
+    );
+
+    $table = 'block_lord_coords';
+    list($nodes, $numnodes) = block_behaviour_get_nodes($coordsid, $table, $params);
+
+    return array($coordsid, $scale, $nodes, $numnodes);
+}
+
+/**
+ * Get the link weight data from the LORD plugin.
+ *
+ * @param int $courseid The course id
+ * @param int $coordsid The graph configuration id
+ * @return array
+ */
+function block_behaviour_get_lord_link_data($courseid, $coordsid) {
+    global $DB;
+
     if ($coordsid == 0) {
-        $scl = $DB->get_records('block_behaviour_scales', $params, 'coordsid DESC');
-    } else {
-        $params['coordsid'] = $coordsid;
-        $scl = $DB->get_records('block_behaviour_scales', $params);
+        return [];
     }
 
-    // Otherwise use table values.
-    if ($scl) {
-        $key = key($scl);
-        $scale = $scl[$key]->scale;
-        $coordsid = $scl[$key]->coordsid;
+    $params = array(
+        'courseid' => $courseid,
+        'coordsid' => $coordsid
+    );
+    $records = $DB->get_records('block_lord_links', $params);
+
+    $links = [];
+    foreach ($records as $r) {
+        $links[$r->module1.'_'.$r->module2] = $r->weight;
     }
 
-    return array($scale, $coordsid);
+    return $links;
 }
 
 /**
@@ -173,12 +277,12 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     }
 
     // Get first user id.
-    $indx = 0;
     if (count($records) > 0) {
         $uid = $records[key($records)]->userid;
     }
 
     // Get the user info and logs.
+    $indx = 0;
     $logs = [];
     $users = [];
     foreach ($records as $row) {
@@ -199,16 +303,57 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     }
 
     $userinfo = [];
+    $userids = [];
     reset($records);
 
     // Handle case where plugin is used in new course with no records
     // still requires enroled students.
     if (count($records) == 0) {
         $userinfo[] = array('id' => 0, 'realId' => 0);
-    } else {
-        foreach ($users as $studentid => $fakeid) {
 
-            $userinfo[] = array('id' => $fakeid, 'realId' => $studentid);
+    } else {
+        // Query the DB for the student names.
+        foreach ($users as $studentid => $fakeid) {
+            $userids[] = $studentid;
+        }
+
+        list($insql, $inparams) = $DB->get_in_or_equal($userids, SQL_PARAMS_NAMED);
+        $sql = "SELECT id, username, firstname, lastname
+                  FROM {user}
+                 WHERE id $insql";
+        $users2 = $DB->get_records_sql($sql, $inparams);
+
+        // Build the user info array, keeping the sequential ids.
+        $havenames = [];
+        foreach ($users2 as $user) {
+            $userinfo[] = array(
+                'id' => $users[$user->id],
+                'realId' => $user->id,
+                'username' => $user->username,
+                'firstname' => $user->firstname,
+                'lastname' => $user->lastname
+            );
+            $havenames[$user->id] = 1;
+        }
+
+        // If records imported, then may not have name in DB, but
+        // still need user info for the logs, so fake it.
+        if (count($users) - count($havenames) > 0) {
+
+            unset($studentid);
+            unset($fakeid);
+            foreach ($users as $studentid => $fakeid) {
+
+                if (!isset($havenames[$studentid])) {
+                    $userinfo[] = array(
+                        'id' => $fakeid,
+                        'realId' => $studentid,
+                        'username' => $fakeid,
+                        'firstname' => $fakeid,
+                        'lastname' => ''
+                    );
+                }
+            }
         }
     }
 
@@ -321,14 +466,24 @@ function block_behaviour_get_members($coordsid, $clusterid, $table, $userid, &$c
 function block_behaviour_check_got_all_mods(&$mods, &$nodes, &$modids) {
 
     $keys = array_keys($nodes);
+    $sect = 1;
+
+    // Get a valid section number for missing modules.
+    foreach ($keys as $mid) {
+        if (strpos($mid, 'g') !== false) {
+            $sect = substr($mid, 1);
+            break;
+        }
+    }
+    reset($keys);
 
     foreach ($keys as $mid) {
         if (!isset($modids[$mid]) && is_numeric($mid)) {
             $mods[] = array(
                 'id'   => $mid,
-                'type' => 'unknown'.$mid,
+                'type' => 'unknown',
                 'name' => 'unknown'.$mid,
-                'sect' => 0
+                'sect' => $sect
             );
         }
     }
@@ -388,6 +543,114 @@ function block_behaviour_update_student_centroid($courseid, $userid, $studentid,
         'centroidy' => $y / $n
     );
     $DB->insert_record('block_behaviour_centroids', $params);
+}
+
+/**
+ * Called to insert or update student centroids and centres after graph has
+ * changed.
+ *
+ * @param int $courseid The course id
+ * @param int $userid The user id
+ * @param int $coordsid The graph configuration id
+ * @param array $nodes The graph node data
+ */
+function block_behaviour_update_centroids_and_centres($courseid, $userid, $coordsid, &$nodes) {
+    global $DB;
+
+    // Get all student's access logs.
+    $logs = $DB->get_records('block_behaviour_imported',
+        array('courseid' => $courseid), 'userid, time');
+
+    if (count($logs) == 0) {
+        return;
+    }
+
+    $studentid = $logs[key($logs)]->userid;
+    $x = 0; $y = 0; $n = 0;
+    $clicks = [];
+    $clicks[$studentid] = [];
+
+    // Sum the coordinate values from module clicks to recalculate centroids.
+    foreach ($logs as $log) {
+
+        // If we have processed all this student's logs, create or update the centroid record.
+        if ($studentid != $log->userid) {
+
+            block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
+
+            // Reset values for next student.
+            $x = 0; $y = 0; $n = 0;
+            $studentid = $log->userid;
+            $clicks[$studentid] = [];
+        }
+
+        // If the node related to the module clicked on is visible, sum coordinates.
+        if (isset($nodes[$log->moduleid]) && $nodes[$log->moduleid]['visible']) {
+
+            $x += $nodes[$log->moduleid]['xcoord'];
+            $y += $nodes[$log->moduleid]['ycoord'];
+            $n++;
+            $clicks[$studentid][] = $log->moduleid;
+        }
+    }
+    // Insert record for last studentid.
+    block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
+
+    // Update decomposed centroids.
+    $records = [];
+    unset($studentid);
+    foreach ($clicks as $studentid => $data) {
+
+        $centre = $data[intval(count($data) / 2)];
+
+        $records[] = (object) array(
+            'courseid'  => $courseid,
+            'userid'    => $userid,
+            'coordsid'  => $coordsid,
+            'studentid' => $studentid,
+            'centroidx' => $nodes[$centre]['xcoord'],
+            'centroidy' => $nodes[$centre]['ycoord']
+        );
+    }
+
+    $DB->insert_records('block_behaviour_centres', $records);
+}
+
+/**
+ * Called to get the user's study id and ensure it is stored in the DB.
+ *
+ * @param int $courseid The course id
+ * @param int $userid The user id
+ * @return string
+ */
+function block_behaviour_get_study_id($courseid, $userid) {
+    global $DB;
+
+    // Check to see if this study ID has already been calculated.
+    $params = ['courseid' => $courseid, 'userid' => $userid];
+    $record = $DB->get_record('block_behaviour_studyids', $params);
+
+    if ($record) {
+        return $record->studyid;
+    }
+
+    // If not, create a new random study ID.
+    $chars = '2346789ABCDEFGHJKLMNPQRTUVWXYZ'; // Removed 0 1 5 I O S.
+    $len = strlen($chars) - 1;
+
+    $id = '' . $courseid . $userid;
+    mt_srand(intval($id));
+    $studyid = '';
+
+    for ($i = 0; $i < 7; $i++) {
+        $studyid .= $chars[mt_rand(0, $len)];
+    }
+
+    // Insert study ID into mapping table.
+    $params['studyid'] = $studyid;
+    $DB->insert_record('block_behaviour_studyids', $params);
+
+    return $studyid;
 }
 
 /**
@@ -452,6 +715,89 @@ function block_behaviour_get_participants($courseid, $roleid) {
 }
 
 /**
+ * Called to get the language strings for client side JS.
+ *
+ * @return array
+ */
+function block_behaviour_get_lang_strings() {
+
+    return array(
+        'cluster'       => get_string('cluster', 'block_behaviour'),
+        'graph'         => get_string('graph', 'block_behaviour'),
+        'numclusters'   => get_string('numclusters', 'block_behaviour'),
+        'randcentroids' => get_string('randcentroids', 'block_behaviour'),
+        'convergence'   => get_string('convergence', 'block_behaviour'),
+        'runkmeans'     => get_string('runkmeans', 'block_behaviour'),
+        'showcentroids' => get_string('showcentroids', 'block_behaviour'),
+        'removegraph'   => get_string('removegraph', 'block_behaviour'),
+        'iteration'     => get_string('iteration', 'block_behaviour'),
+        'section'       => get_string('section', 'block_behaviour'),
+        'hide'          => get_string('hide', 'block_behaviour'),
+        'copy'          => get_string('copy', 'block_behaviour'),
+        'print'         => get_string('print', 'block_behaviour'),
+        'reset'         => get_string('reset', 'block_behaviour'),
+        'numstudents'   => get_string('numstudents', 'block_behaviour'),
+        'numofclusters' => get_string('numofclusters', 'block_behaviour'),
+        'disttocluster' => get_string('disttocluster', 'block_behaviour'),
+        'members'       => get_string('members', 'block_behaviour'),
+        'save'          => get_string('save', 'block_behaviour'),
+        'linksweight'   => get_string('linksweight', 'block_behaviour'),
+        'totalmeasures' => get_string('totalmeasures', 'block_behaviour'),
+        'manualcluster' => get_string('manualcluster', 'block_behaviour'),
+        'precision'     => get_string('precision', 'block_behaviour'),
+        'recall'        => get_string('recall', 'block_behaviour'),
+        'f1'            => get_string('f1', 'block_behaviour'),
+        'fhalf'         => get_string('fhalf', 'block_behaviour'),
+        'f2'            => get_string('f2', 'block_behaviour'),
+        'close'         => get_string('close', 'block_behaviour'),
+        'geometrics'    => get_string('geometrics', 'block_behaviour'),
+        'decomposed'    => get_string('decomposed', 'block_behaviour'),
+        'dragon'        => get_string('dragon', 'block_behaviour'),
+        'dragoff'       => get_string('dragoff', 'block_behaviour'),
+    );
+}
+
+/**
+ * Called to get the HTML table for the client side JS.
+ *
+ * @param int $panelwidth The width of the left side panel.
+ * @param int $legendwidth The width of the right side panel.
+ * @return stdClass
+ */
+function block_behaviour_get_html_table($panelwidth, $legendwidth) {
+
+    // Build the table that holds the graph and UI components.
+    $table = new html_table();
+    $data = [];
+
+    // Left side panel holds the student/teacher menu, animation controls, and cluster slider.
+    $cell1 = new html_table_cell(html_writer::div('', '', array('id' => "student-menu")).
+    html_writer::div('', '', array('id' => "anim-controls")).
+    html_writer::div('', '', array('id' => "cluster-slider")));
+    $cell1->attributes['width'] = $panelwidth.'px';
+
+    // Right side panel hold the hierarchical legend and clustering log panel.
+    $cell3 = new html_table_cell(html_writer::div('', '', array('id' => "legend")).
+    html_writer::div('', '', array('id' => "log-panel")));
+    $cell3->attributes['width'] = $legendwidth.'px';
+
+    // First row with both panels, graph in between.
+    $data[] = new html_table_row(array(
+        $cell1,
+        new html_table_cell(html_writer::div('', '', array('id' => 'graph'))),
+        $cell3));
+
+    // Time slider along bottom.
+    $cell = new html_table_cell(html_writer::div('', '', array('id' => "slider")));
+    $cell->colspan = 3;
+    $data[] = new html_table_row(array($cell));
+
+    $table->data = $data;
+
+    return $table;
+}
+
+/**
  * Class definition for export functionality.
  *
  * This class handles the exporting of log records. The functions contained do
@@ -487,13 +833,13 @@ class block_behaviour_exporter {
     private function block_behaviour_get_sql(&$insql) {
 
         $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
-              FROM {logstore_standard_log}
-             WHERE courseid = :courseid
-               AND anonymous = 0
-               AND crud = 'r'
-               AND contextlevel = :contextmodule
-               AND userid $insql
-          ORDER BY userid, timecreated";
+                  FROM {logstore_standard_log}
+                 WHERE courseid = :courseid
+                   AND anonymous = 0
+                   AND crud = 'r'
+                   AND contextlevel = :contextmodule
+                   AND userid $insql
+              ORDER BY userid, timecreated";
 
         return $sql;
     }
@@ -520,6 +866,11 @@ class block_behaviour_exporter {
         $oars = [];
         foreach ($participants as $value) {
             $oars[] = $value->id;
+        }
+
+        // Avoid DB error on next line.
+        if (count($oars) == 0) {
+            return [];
         }
 
         // Build the query.
@@ -961,5 +1312,850 @@ class block_behaviour_export_form extends moodleform {
         $mform->addElement('html', '<br\>');
 
         $this->add_action_buttons(false, get_string('exportbutlabel', 'block_behaviour'));
+    }
+}
+
+/**
+ * Class to make the advanced export form.
+ *
+ * @package block_behaviour
+ * @author Ted Krahn
+ * @copyright 2020 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_export_all_form extends moodleform {
+    /**
+     * Add elements to form. There are two checkboxes and a submit button.
+     */
+    public function definition() {
+
+        $mform = $this->_form; // Don't forget the underscore!
+
+        $mform->addElement('html', '<br\>');
+
+        $this->add_action_buttons(false, get_string('exportbutlabel', 'block_behaviour'));
+    }
+}
+
+/**
+ * Class definition for advanced export functionality.
+ *
+ * @package block_behaviour
+ * @author Ted Krahn
+ * @copyright 2020 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_complete_exporter {
+
+    /**
+     * Simple constructor.
+     */
+    public function __construct() {
+        global $CFG;
+        require_once($CFG->dirroot . '/lib/modinfolib.php');
+    }
+
+    /**
+     * Called to export all data from a course.
+     *
+     * @param stdClass $course The course object.
+     * @return array
+     */
+    public function block_behaviour_export_data(&$course) {
+        global $DB;
+
+        $data = [];
+
+        $modules = $this->block_behaviour_get_module_data($course);
+        $studyids = $this->block_behaviour_get_study_ids($course->id);
+
+        $data['logs'] = $this->block_behaviour_get_logs($course->id, $modules, $studyids);
+
+        $data['coords'] = $this->block_behaviour_get_coords($course->id, $modules, $studyids);
+        $data['scales'] = $this->block_behaviour_get_scales($course->id, $studyids);
+
+        $data['centroids'] = $this->block_behaviour_get_centroids($course->id, $studyids);
+        $data['centres'] = $this->block_behaviour_get_centres($course->id, $studyids);
+
+        $data['clusters'] = $this->block_behaviour_get_clusters($course->id, $studyids);
+        $data['members'] = $this->block_behaviour_get_members($course->id, $studyids);
+
+        $data['manclusters'] = $this->block_behaviour_get_man_clusters($course->id, $studyids);
+        $data['manmembers'] = $this->block_behaviour_get_man_members($course->id, $studyids);
+
+        $data['comments'] = $this->block_behaviour_get_comments($course->id, $studyids);
+
+        if ($DB->record_exists('block', ['name' => 'lord'])) {
+            $data['lordcoords'] = $this->block_behaviour_get_lord_coords($course->id, $modules);
+            $data['lordscales'] = $this->block_behaviour_get_lord_scales($course->id);
+            $data['lordlinks']  = $this->block_behaviour_get_lord_links($course->id, $modules);
+        }
+
+        return $data;
+    }
+
+    /**
+     * Called to extract the graph link data when integrated with LORD.
+     *
+     * @param int $courseid The course ID.
+     * @param array $modules The course module information.
+     * @return array
+     */
+    private function block_behaviour_get_lord_links($courseid, &$modules) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_lord_links', $params, 'coordsid, module1, module2');
+
+        $links = [];
+        $n = 0;
+
+        foreach ($records as $r) {
+
+            // Get course module information.
+            if (isset($modules[$r->module1])) { // Module from course.
+                $module1 = $modules[$r->module1];
+            } else { // Node data in DB, but deleted from course.
+                $module1 = ['type' => 'unknown', 'name' => 'unknown_'.$n++, 'sect' => 0];
+            }
+
+            if (isset($modules[$r->module2])) { // Module from course.
+                $module2 = $modules[$r->module2];
+            } else { // Node data in DB, but deleted from course.
+                $module2 = ['type' => 'unknown', 'name' => 'unknown_'.$n++, 'sect' => 0];
+            }
+
+            $links[] = array(
+                'coordsid' => $r->coordsid,
+                'type1'    => $module1['type'],
+                'name1'    => $module1['name'],
+                'sect1'    => $module1['sect'],
+                'type2'    => $module2['type'],
+                'name2'    => $module2['name'],
+                'sect2'    => $module2['sect'],
+                'weight'   => $r->weight
+            );
+        }
+
+        return $links;
+    }
+
+    /**
+     * Called to extract the graph configuration scale data when integrated with LORD.
+     *
+     * @param int $courseid The course ID.
+     * @return array
+     */
+    private function block_behaviour_get_lord_scales($courseid) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_lord_scales', $params, 'coordsid');
+
+        $scales = [];
+
+        foreach ($records as $r) {
+
+            $scales[] = array(
+                'coordsid'  => $r->coordsid,
+                'scale'     => $r->scale,
+                'iscustom'  => $r->iscustom,
+                'mindist'   => $r->mindist,
+                'maxdist'   => $r->maxdist,
+                'distscale' => $r->distscale
+            );
+        }
+
+        return $scales;
+    }
+
+    /**
+     * Called to extract the graph configuration data when integrated with LORD.
+     *
+     * @param int $courseid The course ID.
+     * @param array $modules The course module information.
+     * @return array
+     */
+    private function block_behaviour_get_lord_coords($courseid, &$modules) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_lord_coords', $params, 'changed');
+
+        $coords = [];
+        $n = 0;
+
+        foreach ($records as $r) {
+
+            // Get course module information.
+            if (isset($modules[$r->moduleid])) { // Module from course.
+                $module = $modules[$r->moduleid];
+
+            } else if ($r->moduleid == 'root') { // Root grouping node.
+                $module = ['type' => 'root', 'name' => 'root', 'sect' => 0];
+
+            } else if (strpos($r->moduleid, 'g') == 0) { // Other grouping node.
+                $sect = intval(substr($r->moduleid, 1));
+                $module = ['type' => 'grouping', 'name' => $r->moduleid, 'sect' => $sect];
+
+            } else { // Node data in DB, but deleted from course.
+                $module = ['type' => 'unknown', 'name' => 'unknown_'.$n++, 'sect' => 0];
+            }
+
+            $coords[] = array(
+                'changed' => $r->changed,
+                'type'    => $module['type'],
+                'name'    => $module['name'],
+                'sect'    => $module['sect'],
+                'xcoord'  => $r->xcoord,
+                'ycoord'  => $r->ycoord,
+                'visible' => $r->visible
+            );
+        }
+
+        return $coords;
+    }
+
+    /**
+     * Called to extract the comment data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_comments($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_comments', $params, 'userid, coordsid, clusterid');
+
+        $comments = [];
+        $userid = 0;
+        $studyid = 0;
+        $studentid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Anonymize student id.
+            if ($r->studentid < 0) { // Centroid comments are negative.
+                $studentid = $r->studentid;
+
+            } else if (isset($studyids[$r->studentid])) {
+                $studentid = $studyids[$r->studentid];
+
+            } else {
+                $studentid = block_behaviour_get_study_id($courseid, $r->studentid);
+                $studyids[$r->studentid] = $studentid;
+            }
+
+            $comments[] = array(
+                'userid'    => $studyid,
+                'coordsid'  => $r->coordsid,
+                'clusterid' => $r->clusterid,
+                'studentid' => $studentid,
+                'commentid' => $r->commentid,
+                'remark'    => $r->remark
+            );
+        }
+
+        return $comments;
+    }
+
+    /**
+     * Called to extract the manual clustering member data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_man_members($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_man_members', $params, 'userid, coordsid, clusterid');
+
+        $manmembers = [];
+        $userid = 0;
+        $studyid = 0;
+        $studentid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Anonymize student id.
+            if (isset($studyids[$r->studentid])) {
+                $studentid = $studyids[$r->studentid];
+
+            } else {
+                $studentid = block_behaviour_get_study_id($courseid, $r->studentid);
+                $studyids[$r->studentid] = $studentid;
+            }
+
+            $manmembers[] = array(
+                'userid'       => $studyid,
+                'coordsid'     => $r->coordsid,
+                'clusterid'    => $r->clusterid,
+                'iteration'    => $r->iteration,
+                'clusternum'   => $r->clusternum,
+                'studentid'    => $studentid
+            );
+        }
+
+        return $manmembers;
+    }
+
+    /**
+     * Called to extract the manual clustering data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_man_clusters($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_man_clusters', $params, 'userid, coordsid, clusterid');
+
+        $manclusters = [];
+        $userid = 0;
+        $studyid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            $manclusters[] = array(
+                'userid'     => $studyid,
+                'coordsid'   => $r->coordsid,
+                'clusterid'  => $r->clusterid,
+                'iteration'  => $r->iteration,
+                'clusternum' => $r->clusternum,
+                'centroidx'  => $r->centroidx,
+                'centroidy'  => $r->centroidy
+            );
+        }
+
+        return $manclusters;
+    }
+
+    /**
+     * Called to extract the clustering member data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_members($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_members', $params, 'userid, coordsid, clusterid');
+
+        $members = [];
+        $userid = 0;
+        $studyid = 0;
+        $studentid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Anonymize student id.
+            if (isset($studyids[$r->studentid])) {
+                $studentid = $studyids[$r->studentid];
+
+            } else {
+                $studentid = block_behaviour_get_study_id($courseid, $r->studentid);
+                $studyids[$r->studentid] = $studentid;
+            }
+
+            $members[] = array(
+                'userid'     => $studyid,
+                'coordsid'   => $r->coordsid,
+                'clusterid'  => $r->clusterid,
+                'iteration'  => $r->iteration,
+                'clusternum' => $r->clusternum,
+                'studentid'  => $studentid,
+                'centroidx'  => $r->centroidx,
+                'centroidy'  => $r->centroidy,
+            );
+        }
+
+        return $members;
+    }
+
+    /**
+     * Called to extract the clustering data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_clusters($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_clusters', $params, 'userid, coordsid, clusterid');
+
+        $clusters = [];
+        $userid = 0;
+        $studyid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            $clusters[] = array(
+                'userid'       => $studyid,
+                'coordsid'     => $r->coordsid,
+                'clusterid'    => $r->clusterid,
+                'iteration'    => $r->iteration,
+                'clusternum'   => $r->clusternum,
+                'centroidx'    => $r->centroidx,
+                'centroidy'    => $r->centroidy,
+                'usegeometric' => $r->usegeometric,
+            );
+        }
+
+        return $clusters;
+    }
+
+    /**
+     * Called to extract the decomposed centroid data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_centres($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_centres', $params, 'userid, coordsid');
+
+        $centres = [];
+        $userid = 0;
+        $studyid = 0;
+        $studentid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Anonymize student id.
+            if (isset($studyids[$r->studentid])) {
+                $studentid = $studyids[$r->studentid];
+
+            } else {
+                $studentid = block_behaviour_get_study_id($courseid, $r->studentid);
+                $studyids[$r->studentid] = $studentid;
+            }
+
+            $centres[] = array(
+                'userid'    => $studyid,
+                'coordsid'  => $r->coordsid,
+                'studentid' => $studentid,
+                'centroidx' => $r->centroidx,
+                'centroidy' => $r->centroidy,
+            );
+        }
+
+        return $centres;
+    }
+
+    /**
+     * Called to extract the geometric centroid data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_centroids($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_centroids', $params, 'userid, coordsid');
+
+        $centroids = [];
+        $userid = 0;
+        $studyid = 0;
+        $studentid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Anonymize student id.
+            if (isset($studyids[$r->studentid])) {
+                $studentid = $studyids[$r->studentid];
+
+            } else {
+                $studentid = block_behaviour_get_study_id($courseid, $r->studentid);
+                $studyids[$r->studentid] = $studentid;
+            }
+
+            $centroids[] = array(
+                'userid'    => $studyid,
+                'coordsid'  => $r->coordsid,
+                'studentid' => $studentid,
+                'totalx'    => $r->totalx,
+                'totaly'    => $r->totaly,
+                'numnodes'  => $r->numnodes,
+                'centroidx' => $r->centroidx,
+                'centroidy' => $r->centroidy,
+            );
+        }
+
+        return $centroids;
+    }
+
+    /**
+     * Called to extract the graph configuration scale data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_scales($courseid, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_scales', $params, 'userid, coordsid');
+
+        $scales = [];
+        $userid = 0;
+        $studyid = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            $scales[] = array(
+                'userid'   => $studyid,
+                'coordsid' => $r->coordsid,
+                'scale'    => $r->scale
+            );
+        }
+
+        return $scales;
+    }
+
+    /**
+     * Called to extract the graph configuration data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $modules The course module information.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_coords($courseid, &$modules, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_coords', $params, 'userid, changed');
+
+        $coords = [];
+        $userid = 0;
+        $studyid = 0;
+        $n = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Get course module information.
+            if (isset($modules[$r->moduleid])) { // Module from course.
+                $module = $modules[$r->moduleid];
+
+            } else if ($r->moduleid == 'root') { // Root grouping node.
+                $module = ['type' => 'root', 'name' => 'root', 'sect' => 0];
+
+            } else if (strpos($r->moduleid, 'g') == 0) { // Other grouping node.
+                $sect = intval(substr($r->moduleid, 1));
+                $module = ['type' => 'grouping', 'name' => $r->moduleid, 'sect' => $sect];
+
+            } else { // Node data in DB, but deleted from course.
+                $module = ['type' => 'unknown', 'name' => 'unknown_'.$n++, 'sect' => 0];
+            }
+
+            $coords[] = array(
+                'userid'  => $studyid,
+                'changed' => $r->changed,
+                'type'    => $module['type'],
+                'name'    => $module['name'],
+                'sect'    => $module['sect'],
+                'xcoord'  => $r->xcoord,
+                'ycoord'  => $r->ycoord,
+                'visible' => $r->visible
+            );
+        }
+
+        return $coords;
+    }
+
+    /**
+     * Called to extract the access log data.
+     *
+     * @param int $courseid The course ID.
+     * @param array $modules The course module information.
+     * @param array $studyids The student study IDs.
+     * @return array
+     */
+    private function block_behaviour_get_logs($courseid, &$modules, &$studyids) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_imported', $params, 'userid, time');
+
+        $userid = 0;
+        $studyid = 0;
+        $time = 0;
+        $logs = [];
+        $n = 0;
+
+        foreach ($records as $r) {
+
+            // Anonymize user id and time.
+            if ($userid != $r->userid) {
+                $userid = $r->userid;
+                $time = 1;
+
+                if (isset($studyids[$r->userid])) {
+                    $studyid = $studyids[$r->userid];
+
+                } else {
+                    $studyid = block_behaviour_get_study_id($courseid, $r->userid);
+                    $studyids[$r->userid] = $studyid;
+                }
+            }
+
+            // Get course module information.
+            if (isset($modules[$r->moduleid])) {
+                $module = $modules[$r->moduleid];
+
+            } else {
+                $module = ['type' => 'unknown', 'name' => 'unknown_'.$n++];
+            }
+
+            $logs[] = array(
+                'type'   => $module['type'],
+                'name'   => $module['name'],
+                'userid' => $studyid,
+                'time'   => $time++
+            );
+        }
+
+        return $logs;
+    }
+
+    /**
+     * Called to extract the student study ID data.
+     *
+     * @param int $courseid The course ID.
+     * @return array
+     */
+    private function block_behaviour_get_study_ids($courseid) {
+        global $DB;
+
+        $params = ['courseid' => $courseid];
+        $records = $DB->get_records('block_behaviour_studyids', $params);
+
+        $studyids = [];
+
+        foreach ($records as $r) {
+            $studyids[$r->userid] = $r->studyid;
+        }
+
+        return $studyids;
+    }
+
+    /**
+     * Called to extract the course module data.
+     *
+     * @param stdClass $course The course object.
+     * @return array
+     */
+    private function block_behaviour_get_module_data($course) {
+
+        // Get the course module information.
+        $modinfo = get_fast_modinfo($course);
+        $courseinfo = [];
+
+        foreach ($modinfo->sections as $sectionnum => $section) {
+
+            foreach ($section as $cmid) {
+                $cm = $modinfo->cms[$cmid];
+
+                if ($cm->has_view() && $cm->uservisible) {
+
+                    $courseinfo[$cmid] = array(
+                        'type' => $cm->modname,
+                        'name' => $cm->name,
+                        'sect' => $sectionnum
+                    );
+                }
+            }
+        }
+
+        return $courseinfo;
+    }
+}
+
+/**
+ * Form definition for the custom settings.
+ *
+ * @author Ted Krahn
+ * @copyright 2020 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_settings_form extends moodleform {
+
+    /**
+     * Function to make the form.
+     */
+    public function definition() {
+        global $DB, $COURSE, $USER;
+
+        // Get custom settings, if exist.
+        $params = array(
+            'courseid' => $COURSE->id,
+            'userid' => $USER->id
+        );
+        $record = $DB->get_record('block_behaviour_lord_options', $params);
+
+        if ($record) {
+            $uselord = $record->uselord;
+            $usecustom = $record->usecustom;
+
+        } else { // Defaults.
+            $uselord = 0;
+            $usecustom = 1;
+        }
+
+        $mform = &$this->_form;
+
+        // Course id.
+        $mform->addElement('hidden', 'id');
+        $mform->setType('id', PARAM_INT);
+
+        $mform->addElement('header', 'config_header', get_string('adminheaderuselord', 'block_behaviour'));
+
+        // Option to use the graph from the LORD plugin.
+        $mform->addElement('advcheckbox', 'use_lord', get_string('uselordlabel', 'block_behaviour'),
+            get_string('uselorddesc', 'block_behaviour'));
+        $mform->setDefault('use_lord', $uselord);
+
+        // Option to use the manipulated LORD graph, if one exists.
+        if ($DB->record_exists('block_lord_scales', ['courseid' => $COURSE->id, 'iscustom' => 1])) {
+            $mform->addElement('advcheckbox', 'use_custom', get_string('uselordcustomlabel', 'block_behaviour'),
+                get_string('uselordcustomdesc', 'block_behaviour'));
+            $mform->setDefault('use_custom', $usecustom);
+            $mform->disabledIf('use_custom', 'use_lord', 'notchecked');
+        }
+
+        $this->add_action_buttons();
     }
 }

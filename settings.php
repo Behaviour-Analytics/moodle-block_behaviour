@@ -36,11 +36,60 @@ require_once($CFG->dirroot . '/blocks/behaviour/locallib.php');
 
 if ($ADMIN->fulltree) {
 
-    // Settings header.
+    // Study ID settings header.
     $settings->add(new admin_setting_heading(
-        'headerconfig',
+        'headerconfig1',
+        get_string('adminheaderstudyid', 'block_behaviour'),
+        ''
+    ));
+
+    // The checkbox for showing the study ID.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_behaviour/showstudyid',
+        get_string('studyidlabel', 'block_behaviour'),
+        get_string('studyiddesc', 'block_behaviour'),
+        '0'
+    ));
+
+    // Study ID settings header.
+    $settings->add(new admin_setting_heading(
+        'headerconfig2',
+        get_string('adminheadershownames', 'block_behaviour'),
+        ''
+    ));
+
+    // The checkbox for showing the study ID.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_behaviour/shownames',
+        get_string('shownameslabel', 'block_behaviour'),
+        get_string('shownamesdesc', 'block_behaviour'),
+        '0'
+    ));
+
+    // Admin option for enabling LORD integration.
+    if ($DB->record_exists('block', ['name' => 'lord'])) {
+
+        // Use LORD generated graph header.
+        $settings->add(new admin_setting_heading(
+            'headerconfig3',
+            get_string('adminheaderuselord', 'block_behaviour'),
+            ''
+        ));
+
+        // The checkbox for using LORD.
+        $settings->add(new admin_setting_configcheckbox(
+            'block_behaviour/uselord',
+            get_string('adminuselordlabel', 'block_behaviour'),
+            get_string('adminuselorddesc', 'block_behaviour'),
+            '0'
+        ));
+    }
+
+    // Researcher role settings header.
+    $settings->add(new admin_setting_heading(
+        'headerconfig4',
         get_string('adminheader', 'block_behaviour'),
-        get_string('admindesc', 'block_behaviour')
+        ''
     ));
 
     // Get the courses for which the plugin is installed.
@@ -51,7 +100,7 @@ if ($ADMIN->fulltree) {
         $courseids[] = $course->courseid;
     }
 
-    // Sanit check. When first installed, block is not used anywhere, therefore no settings.
+    // Sanity check. When first installed, block is not used anywhere, therefore no settings.
     if (count($courseids) == 0) {
         return;
     }
@@ -108,7 +157,6 @@ if ($ADMIN->fulltree) {
                 get_string('researchrole', 'block_behaviour', $params),
                 '0'
             ));
-
         }
     }
 }

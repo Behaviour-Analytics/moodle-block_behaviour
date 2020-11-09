@@ -20,9 +20,10 @@ The plugin is intended for teacher use and will not be seen by students.
 
 Installation:
 
-Behaviour Analytics installs as any other block would, from a zip file through the
-Moodle interface for installing new plugins. It can also be installed by copying
-the plugin files into a behaviour directory within the blocks directory.
+Behaviour Analytics can be installed directly from the Moodle plugin directory
+by navigating to Site administration -> Plugins -> Install plugins and searching
+for Behaviour Analytics. It can also be installed from a downloaded zip file or
+by copying the plugin files into the blocks/behaviour directory.
 
 
 Post-installation set-up:
@@ -39,7 +40,7 @@ for "Behaviour Analytics" and clicking the associated settings link.
 The block also has a scheduled task that is, by default, set to run once a day.
 The frequency that the task runs can be changed by going to
 Site administration -> Server -> Scheduled tasks, then clicking the settings
-icon for "Incrementally extract logs."
+icon for "Update Behaviour Analytics."
 
 
 Usage:
@@ -62,10 +63,10 @@ The weight slider controls the link weights where positive values produce nodes
 that pull together and the negative value will push the nodes apart. A value of
 zero causes all the nodes to remain stationary. The nodes can then be dragged
 into position. Unwanted nodes can be removed by right clicking and choosing the
-remove option or by unchecking the associated box in the hieararchical legend.
+remove option or by unchecking the associated box in the hieararchical menu.
 Hovering over a node will show the type and name of the activity as well as
-bring up a preview that can then be interacted with. Moving the mouse away will
-make the name and preview disappear.
+bring up an interactive preview. Moving the mouse away will make the name and
+preview disappear.
 
 Viewing the graph:
 With the nodes positioned, the graph can be viewed by clicking the link to view
@@ -81,16 +82,16 @@ Clustering students:
 There is a button labeled "Cluster" above the student menu that moves from the
 graph viewing stage to the clustering stage. Clicking the button will show the
 same graph and student links, but with each student centroid denoted by a
-triangle. There is a checkbox to choose between the default decomposed centroids
-or weighted geometric centroids. The slider in the clustering interface controls
-the stages of clustering. Moving the slider to the second position removes the
+triangle. There is a radio button to choose between the default weighted
+geometric centroids or decomposed centroids. The slider controls the
+stages of clustering. Moving the slider to the second position removes the
 graph and scales the student centroids to the edge of the viewing area. The
 third position on the slider allows clustering to be performed. A text box takes
 the number of clusters to use or the default of 3 will be used. The clustering
 can then be stepped through one iteration at a time or it can be played to
-convergence by using the associated play and step buttons. The stop button will
+convergence by using the associated play and step buttons. The reset button will
 reset the clustering stage. All the clustering results are logged in the right
-side panel which shows which cluster each student belongs to.
+side panel, which shows which cluster each student belongs to.
 
 During clustering, student centroids and clustering centroids can have comments
 added to them. Clicking a centroid will bring up a comment box to record any
@@ -137,6 +138,25 @@ centroids that are the same colour as the originals. The original set is
 unchanged while the manual clusters are more transparent and represent the
 changes the user has made. Both sets of clusters are updated with new data as
 it is available.
+
+Integrating with the Learning Object Relation Discovery (LORD) block:
+First, the LORD plugin must be installed in Moodle. Then, there is an
+administrator option to allow the integration. With the administrator option
+enabled, an extra link will appear in the block to configure the integration.
+There are 2 settings available from within the block. The first causes Behaviour
+Analytics to use the latest graph made in the LORD plugin. The second switches
+between using the system generated graph and the user manipulated graph. If
+there is no LORD graph to use, the graph made with Behaviour Analytics will
+be used instead.
+
+When using the LORD generated graph, it is possible to manipulate the nodes
+using the "Configure resource nodes" feature. The graph will appear slightly
+different, as it will have grouping nodes and their associated links. If a LORD
+graph is manipulated within Behaviour Analytics, it will cease to be a LORD
+graph. This means that LORD integration must be switched off to use the newly
+manipulated graph. Such a graph will have all the nodes in the correct positions,
+but the links will appear differently, as there will no longer be links between
+nodes.
 
 Importing and exporting data:
 Adminstrators will see export and import forms in the block which are used to

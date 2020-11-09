@@ -195,6 +195,27 @@ class provider implements
             'privacy:metadata:block_behaviour_centres'
         );
 
+        $collection->add_database_table(
+            'block_behaviour_studyids',
+            [
+                'courseid'  => 'privacy:metadata:block_behaviour:courseid',
+                'userid'    => 'privacy:metadata:block_behaviour:userid',
+                'studyid'   => 'privacy:metadata:block_behaviour:studyid'
+            ],
+            'privacy:metadata:block_behaviour_studyids'
+        );
+
+        $collection->add_database_table(
+            'block_behaviour_lord_options',
+            [
+                'courseid'  => 'privacy:metadata:block_behaviour:courseid',
+                'userid'    => 'privacy:metadata:block_behaviour:userid',
+                'uselord'   => 'privacy:metadata:block_behaviour:uselord',
+                'usecustom' => 'privacy:metadata:block_behaviour:usecustom',
+            ],
+            'privacy:metadata:block_behaviour_lord_options'
+        );
+
         return $collection;
     }
 
@@ -242,6 +263,12 @@ class provider implements
 
         $sql = "SELECT distinct(userid)
                   FROM {block_behaviour_imported}
+              ORDER BY userid";
+
+        $userlist->add_from_sql('userid', $sql, $params);
+
+        $sql = "SELECT distinct(userid)
+                  FROM {block_behaviour_scales}
               ORDER BY userid";
 
         $userlist->add_from_sql('userid', $sql, $params);
@@ -295,6 +322,12 @@ class provider implements
             $data = (object) $DB->get_records('block_behaviour_man_clusters', $params);
             writer::with_context($context)->export_data([], $data);
 
+            $data = (object) $DB->get_records('block_behaviour_studyids', $params);
+            writer::with_context($context)->export_data([], $data);
+
+            $data = (object) $DB->get_records('block_behaviour_lord_options', $params);
+            writer::with_context($context)->export_data([], $data);
+
             $params['studentid'] = $context->instanceid;
             $cond = 'userid = :userid OR studentid = :studentid';
 
@@ -342,6 +375,8 @@ class provider implements
         $DB->delete_records_select('block_behaviour_comments', $cond, $params);
         $DB->delete_records_select('block_behaviour_man_members', $cond, $params);
         $DB->delete_records_select('block_behaviour_centres', $cond, $params);
+        $DB->delete_records_select('block_behaviour_studyids', $cond, $params);
+        $DB->delete_records_select('block_behaviour_lord_options', $cond, $params);
     }
 
     /**
@@ -371,6 +406,8 @@ class provider implements
         $DB->delete_records('block_behaviour_clusters', $params);
         $DB->delete_records('block_behaviour_scales', $params);
         $DB->delete_records('block_behaviour_man_clusters', $params);
+        $DB->delete_records('block_behaviour_studyids', $params);
+        $DB->delete_records('block_behaviour_lord_options', $params);
 
         $params['studentid'] = $context->instanceid;
         $cond = 'userid = :userid OR studentid = :studentid';
@@ -404,6 +441,8 @@ class provider implements
             $DB->delete_records('block_behaviour_clusters', $params);
             $DB->delete_records('block_behaviour_scales', $params);
             $DB->delete_records('block_behaviour_man_clusters', $params);
+            $DB->delete_records('block_behaviour_studyids', $params);
+            $DB->delete_records('block_behaviour_lord_options', $params);
 
             $params['studentid'] = $userid;
             $cond = 'userid = :userid OR studentid = :studentid';

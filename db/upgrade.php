@@ -50,5 +50,46 @@ function xmldb_block_behaviour_upgrade($oldversion) {
         upgrade_block_savepoint(true, 2019120901, 'behaviour');
     }
 
+    if ($oldversion < 2020101000) {
+
+        $dbman = $DB->get_manager();
+
+        // Define block_behaviour_studyids table.
+        $table = new xmldb_table('block_behaviour_studyids');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('studyid', XMLDB_TYPE_CHAR, '12', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table block_behaviour_studyids.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        // Conditionally launch create table for block_behaviour_studyids.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Define block_behaviour_lord_options table.
+        $table = new xmldb_table('block_behaviour_lord_options');
+
+        $table->add_field('id', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, XMLDB_SEQUENCE, null);
+        $table->add_field('courseid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('userid', XMLDB_TYPE_INTEGER, '10', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('uselord', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, null);
+        $table->add_field('usecustom', XMLDB_TYPE_INTEGER, '1', null, XMLDB_NOTNULL, null, null);
+
+        // Adding keys to table block_behaviour_studyids.
+        $table->add_key('primary', XMLDB_KEY_PRIMARY, array('id'));
+
+        // Conditionally launch create table for block_behaviour_studyids.
+        if (!$dbman->table_exists($table)) {
+            $dbman->create_table($table);
+        }
+
+        // Behaviour savepoint reached.
+        upgrade_block_savepoint(true, 2020101000, 'behaviour');
+    }
+
     return true;
 }

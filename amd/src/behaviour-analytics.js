@@ -51,11 +51,14 @@
             courseName, // Name of the course.
             iframeURL, // Server prefix for iframes.
             positioning, // Boolean flag indicates regular graphing or node positioning.
+            originalPositioning, // Other positioning flag gets changed, but need to know original value.
             presetNodes, // Predetermined node coordinates from server.
+            lordLinks, // When integrated with LORD plugin, need links between nodes.
             coordsScale, // Scale value used for normalizing preset nodes.
             courseId, // Course id number.
             userId, // Teacher user id number.
             allGraphs, // For researcher role, all other teachers graphs.
+            allLinks, // For researcher role, all LORD link sets.
             allScales, // For researcher role, all teachers scales.
             allChanges, // For researcher role, all teachers change times.
             allNames, // For researcher role, all teachers usernames.
@@ -132,6 +135,7 @@
             iframeRight, // Flag to position an iframe on the right side.
             inIframe, // Flag to remove iframe or not.
             version36, // Flag for log panel styling, and iframe offset, different in 3.6.
+            showStudentNames, // Flag to show student names or sequential ids.
             convergenceDistance, // Mean distance between old centroids and new.
             dragEndTime, // Time dragging was stopped.
             dragstartedFunc, // Node drag started function.
@@ -175,12 +179,16 @@
             courseName = incoming.name;
             iframeURL = incoming.iframeurl;
             version36 = incoming.version36;
+            showStudentNames = incoming.showstudentnames;
             positioning = incoming.positioning;
+            originalPositioning = incoming.positioning;
             presetNodes = incoming.nodecoords;
+            lordLinks = incoming.links;
             courseId = incoming.courseid;
             userId = incoming.userid;
             coordsScale = incoming.scale;
             allGraphs = incoming.graphs;
+            allLinks = incoming.alllinks;
             allScales = incoming.scales;
             allChanges = incoming.changes;
             allNames = incoming.names;
@@ -231,6 +239,8 @@
             hullOpacity = 0.15;
             // A curveType = ddd.curveLinearClosed; // Good, angled corners.
             curveType = ddd.curveCatmullRomClosed; // Good, rounded corners.
+
+            useGeometricCentroids = true;
 
             nodeBoxes = {};
             coordsData = {};
@@ -478,6 +488,37 @@
             }
 
             data.nodes[data.nodes.length] = r;
+
+            // When integrated with LORD plugin, make links between nodes instead
+            // of grouping by section to keep the graph consistent with LORD.
+            if (Object.keys(lordLinks).length > 0) {
+
+                var m1,
+                    m2,
+                    split;
+
+                for (var l in lordLinks) {
+                    split = l.split('_');
+                    m1 = split[0];
+                    m2 = split[1];
+
+                    data.links[data.links.length] = {
+                        source: m1,
+                        target: m2,
+                        weight: lordLinks[l] * 5.0,
+                        colour: modColours.originalLinks
+                    };
+                }
+
+                // Do not render grouping nodes, unless in positioning stage.
+                if (!originalPositioning) {
+                    for (var n in data.nodes) {
+                        if (isNaN(data.nodes[n].id)) {
+                            data.nodes[n].visible = false;
+                        }
+                    }
+                }
+            }
         }
 
         /**
@@ -995,7 +1036,7 @@
 
             // Make the iframe preview, unless it is an external resource. These cause
             // a new window to open with error, causing problems MATH215.
-            if (node.entype != 'lti') {
+            if (node.entype != 'lti' && node.type != 'unknown') {
 
                 // First a background to attach listeners to the iframe.
                 var bgrnd = document.createElement('div');
@@ -1076,7 +1117,6 @@
                 .on('mouseout', mouseout);
 
             if (iframeStaticPos) {
-
                 // Replace link listeners.
                 graphLinks
                     .on('mouseover', linkMouseover)
@@ -1169,9 +1209,9 @@
                 .style('display', function(d) {
                     return (!d.visible) ? 'none' : 'block';
                 })
-                .style('fill', (function(d) {
+                .style('fill', function(d) {
                     return d.colour;
-                }))
+                })
                 .raise();
         }
 
@@ -1204,17 +1244,18 @@
                 });
 
             // Keep nodes on screen when dragging.
-            graphNodes.attr("cx", function(d) {
-                d.x = Math.max(radius, Math.min(width - radius, d.x));
-                return d.x;
-            })
+            graphNodes
+                .attr("cx", function(d) {
+                    d.x = Math.max(radius, Math.min(width - radius, d.x));
+                    return d.x;
+                })
                 .attr("cy", function(d) {
                     d.y = Math.max(radius, Math.min(height - radius, d.y));
                     return d.y;
                 })
-                .style('fill', (function(d) {
+                .style('fill', function(d) {
                     return d.colour;
-                }))
+                })
                 .style("display", function(d) {
                     return d.visible ? 'block' : 'none';
                 })
@@ -1249,6 +1290,7 @@
             if (mins < 10) {
                 mins = '0' + mins;
             }
+
             // Draw the time.
             graph.append('text')
                 .attr('id', 'time')
@@ -1501,6 +1543,7 @@
 
             // Change the preset nodes and scales.
             presetNodes = allGraphs[key];
+            lordLinks = allLinks[key];
             coordsScale = allScales[key];
             lastChange = allChanges[key];
             modules = allMods[key];
@@ -1982,9 +2025,26 @@
                 }
             });
 
-            users.sort(function(a, b) {
-                return a.id - b.id;
-            });
+            // Sort the users for nicer in menu display.
+            if (showStudentNames == 1) {
+                users.sort(function(a, b) {
+
+                    var aName = a.firstname + ' ' + a.lastname;
+                    var bName = b.firstname + ' ' + b.lastname;
+
+                    if (aName > bName) {
+                        return 1;
+                    }
+                    if (aName < bName) {
+                        return -1;
+                    }
+                    return 0;
+                });
+            } else {
+                users.sort(function(a, b) {
+                    return a.id - b.id;
+                });
+            }
 
             // Add users to the list.
             users.forEach(function(u) {
@@ -2005,7 +2065,7 @@
             // Make the list item.
             var o = document.createElement('option');
             o.value = user.id;
-            o.text = user.id;
+            o.text = showStudentNames == 1 ? user.firstname + ' ' + user.lastname : user.id;
             o.colour = colours[colourIndex++];
 
             // Make sure colourIndex stays in bounds.
@@ -2364,7 +2424,6 @@
                 makePolygonHull(nodeGroups[key], key, false, false);
             }
             if (graphing) {
-                options = document.getElementById('student-select').options;
                 if (useGeometricCentroids) {
                     getGeometricCentroids(options);
                 } else {
@@ -2383,6 +2442,11 @@
         function getDecomposedCentroids(options) {
 
             hullCentroids = {}; // Clear the old values.
+
+            // Fixes a bug in empty course with no students.
+            if (Object.keys(clickData).length == 0) {
+                return;
+            }
 
             // Only consider students who are checked.
             for (var i = 0; i < options.length; i++) {
@@ -2427,6 +2491,11 @@
         function getGeometricCentroids(options) {
 
             hullCentroids = {}; // Clear the old values.
+
+            // Fixes a bug in empty course with no students.
+            if (Object.keys(clickData).length == 0) {
+                return;
+            }
 
             // Only consider students who are checked.
             for (var i = 0; i < options.length; i++) {
@@ -2621,6 +2690,7 @@
             // Stop clustering.
             clearInterval(clusterAnimInterval);
             clusterAnimInterval = undefined;
+            scaledCentroids = null;
             resetLogPanel();
 
             // Remove clustering elements.
@@ -2719,6 +2789,7 @@
                 } else {
                     // Cluster slider has already been made, just reset everything.
                     document.getElementById('clustering').innerHTML = '&nbsp';
+                    document.getElementById('dragdrop').innerHTML = '&nbsp';
                     document.getElementById('cluster-text').innerHTML = ph;
 
                     document.getElementById('play-pause').innerHTML = '&#9654'; // 9654=play.
@@ -2727,6 +2798,7 @@
 
                     document.getElementById('anim-controls').style.display = 'block';
                     document.getElementById('log-panel').style.display = 'block';
+                    clusterSlider.removeAttribute('disabled');
                     clusterSlider.noUiSlider.set(1);
                     clusterSlider.style.display = 'block';
                 }
@@ -2807,11 +2879,13 @@
                 resetPlayButton();
                 resetLogPanel();
                 document.getElementById('replayer').innerHTML = '&nbsp;';
+                document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
             }
             if (studentMenu) {
                 document.body.removeChild(studentMenu);
             }
 
+            scaledCentroids = null;
             assignModuleColours();
             getData();
             sliderValues = [0, graphData.maxSession];
@@ -2993,7 +3067,7 @@
             var measures = getClusterMeasures(iter);
 
             // Log panel text.
-            var lpt = langStrings.manualcluster + '\n';
+            var lpt = langStrings.manualcluster + '<br>';
 
             // Get centroid from coordinates, then determine distance to
             // cluster and membership.
@@ -3007,11 +3081,12 @@
                 var dx = manualCentroids[i].x - width / 2;
                 var dy = manualCentroids[i].y - height / 2;
                 var d = Math.sqrt(dx * dx + dy * dy);
+                var c = centroids[i].colour;
 
                 // Add distance to cluster.
-                lpt += langStrings.disttocluster + ' ' + i + ': ' +
-                    Math.round(d) + '\n' + langStrings.cluster + ' ' + i +
-                    ' ' + langStrings.members + ': ' + '[';
+                lpt += langStrings.disttocluster + ' <span style="color:' + c + '">' +
+                    c + '</span>: ' + Math.round(d) + '<br>' + langStrings.cluster +
+                    ' ' + c + ' ' + langStrings.members + ': ' + '[';
 
                 // Add members for this cluster.
                 for (var student in manualClusters[iter]) {
@@ -3023,29 +3098,29 @@
                 if (lpt.indexOf(',', lpt.length - 3) != -1) {
                     lpt = lpt.slice(0, -2);
                 }
-                lpt += ']\n';
+                lpt += ']<br>';
 
                 // Log per cluster clustering measures for researchers.
                 if (isResearcher) {
-                    lpt += langStrings.precision + ': ' + measures[i].precision.toFixed(4) + '\n';
-                    lpt += langStrings.recall + ': ' + measures[i].recall.toFixed(4) + '\n';
-                    lpt += langStrings.f1 + ': ' + measures[i].f1.toFixed(4) + '\n';
-                    lpt += langStrings.fhalf + ': ' + measures[i].fhalf.toFixed(4) + '\n';
-                    lpt += langStrings.f2 + ': ' + measures[i].f2.toFixed(4) + '\n';
+                    lpt += langStrings.precision + ': ' + measures[i].precision.toFixed(4) + '<br>';
+                    lpt += langStrings.recall + ': ' + measures[i].recall.toFixed(4) + '<br>';
+                    lpt += langStrings.f1 + ': ' + measures[i].f1.toFixed(4) + '<br>';
+                    lpt += langStrings.fhalf + ': ' + measures[i].fhalf.toFixed(4) + '<br>';
+                    lpt += langStrings.f2 + ': ' + measures[i].f2.toFixed(4) + '<br>';
                 }
             }
 
             // Write iteration results to log panel.
-            var lpv = logPanel.value.split('\n\n');
-            var lpv0 = lpv[0].split('\n');
-            logPanel.value = '';
+            var lpv = logPanel.innerHTML.split('<br><br>');
+            var lpv0 = lpv[0].split('<br>');
+            logPanel.innerHTML = '';
 
             // Remove previous manual clustering results, but keep k-means.
             for (i = 0; i < lpv0.length; i++) {
                 if (lpv0[i].startsWith(langStrings.manualcluster)) {
                     break;
                 }
-                logPanel.value += lpv0[i] + '\n';
+                logPanel.innerHTML += lpv0[i] + '<br>';
             }
 
             // Add in new manual clustering results.
@@ -3053,19 +3128,19 @@
             // Log total clustering measures for researchers.
             if (isResearcher) {
                 i = measures.length - 1;
-                lpt += langStrings.totalmeasures + '\n';
-                lpt += langStrings.precision + ': ' + measures[i].precision.toFixed(4) + '\n';
-                lpt += langStrings.recall + ': ' + measures[i].recall.toFixed(4) + '\n';
-                lpt += langStrings.f1 + ': ' + measures[i].f1.toFixed(4) + '\n';
-                lpt += langStrings.fhalf + ': ' + measures[i].fhalf.toFixed(4) + '\n';
-                lpt += langStrings.f2 + ': ' + measures[i].f2.toFixed(4) + '\n';
+                lpt += langStrings.totalmeasures + '<br>';
+                lpt += langStrings.precision + ': ' + measures[i].precision.toFixed(4) + '<br>';
+                lpt += langStrings.recall + ': ' + measures[i].recall.toFixed(4) + '<br>';
+                lpt += langStrings.f1 + ': ' + measures[i].f1.toFixed(4) + '<br>';
+                lpt += langStrings.fhalf + ': ' + measures[i].fhalf.toFixed(4) + '<br>';
+                lpt += langStrings.f2 + ': ' + measures[i].f2.toFixed(4) + '<br>';
             }
 
-            logPanel.value += lpt + '\n';
+            logPanel.innerHTML += lpt + '<br>';
 
             // Add back all previous results.
             for (i = 1; i < lpv.length; i++) {
-                logPanel.value += lpv[i] + '\n\n';
+                logPanel.innerHTML += lpv[i] + '<br><br>';
             }
         }
 
@@ -3203,7 +3278,7 @@
          */
         function getCurrentIteration() {
 
-            var lpv = logPanel.value.split('\n');
+            var lpv = logPanel.innerHTML.split('<br>');
 
             if (lpv[2] && lpv[2].startsWith(langStrings.iteration)) {
                 return parseInt(lpv[2].split(' ')[1]);
@@ -3474,6 +3549,7 @@
             coordsData.clusterId = clusterid;
             lastChange = data[datasetid][coordsid].last;
             presetNodes = data[datasetid][coordsid].nodes;
+            lordLinks = data[datasetid][coordsid].links;
             coordsScale = data[datasetid][coordsid].scale;
             modules = data[datasetid][coordsid].mods;
             replayData = data[datasetid][coordsid][clusterid];
@@ -3652,7 +3728,15 @@
             var st = document.createElement('p');
             st.innerHTML = '&nbsp';
             st.id = 'replayer';
+            st.style.marginTop = '-20px';
             ctrlDiv.appendChild(st);
+
+            // Placeholder for student drag and drop text.
+            var dd = document.createElement('p');
+            dd.innerHTML = '&nbsp';
+            dd.id = 'replaydragdrop';
+            dd.style.marginTop = '-12px';
+            ctrlDiv.appendChild(dd);
 
             // Stop clustering control button.
             var stop = document.createElement('button');
@@ -3695,10 +3779,12 @@
                     graph.remove();
                     resetLogPanel();
                     document.getElementById('replayer').innerHTML = '&nbsp;';
+                    document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
                 }, 500);
             }
 
             replayData = undefined;
+            scaledCentroids = null;
             resetPlayButton();
 
             // Unselect selected clustering run.
@@ -3716,7 +3802,7 @@
          */
         function resetLogPanel() {
             logPanel.readOnly = false;
-            logPanel.value = '';
+            logPanel.innerHTML = '';
             setTimeout(function() {
                 logPanel.readOnly = true;
             }, 300);
@@ -3836,17 +3922,21 @@
                 clusterSliderValue = 1;
                 clusteringCase1();
                 clustering = false;
-                logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
+                logPanel.innerHTML = logPanel.innerHTML.slice(logPanel.innerHTML.indexOf('<br><br>') + 8);
                 document.getElementById('replayer').innerHTML = '&nbsp;';
+                document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
 
             } else if (clusterIters == 1) {
                 // From second position, remove clustering centroids.
+                scaledCentroids = null;
                 clusteringCase2();
-                logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
+                logPanel.innerHTML = logPanel.innerHTML.slice(logPanel.innerHTML.indexOf('<br><br>') + 8);
                 document.getElementById('replayer').innerHTML = '&nbsp;';
+                document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
 
             } else {
                 // Regular moving back with positive iteration values.
+                scaledCentroids = null;
                 runReplayIter(actualIter - 1, true, (clusterIters == 2));
             }
         }
@@ -3917,7 +4007,7 @@
 
             // Write/remove clustering results to/from log panel.
             if (removeLog) {
-                logPanel.value = logPanel.value.slice(logPanel.value.indexOf('\n\n') + 2);
+                logPanel.innerHTML = logPanel.innerHTML.slice(logPanel.innerHTML.indexOf('<br><br>') + 8);
             } else {
                 for (var key in members) {
                     scaledCentroids[key].ci = members[key];
@@ -3926,8 +4016,32 @@
                 logManualClusteringResults(iter);
             }
 
-            document.getElementById('replayer').innerHTML =
-                iter < 0 ? langStrings.convergence : langStrings.iteration + ' ' + iter;
+            // Display status messages below replay menu.
+            if (iter < 0) {
+                document.getElementById('replayer').innerHTML = langStrings.convergence;
+                document.getElementById('replayer').style.color = 'green';
+
+                // Don't show the drag on message when researcher viewing anothers data.
+                if (isResearcher) {
+                    var opts = document.getElementById('replay-select').options;
+
+                    for (i = 0; i < opts.length; i++) {
+                        if (opts[i].selected) {
+                            var uid = opts[i].value.split('-')[0];
+                            if (uid == userId) {
+                                document.getElementById('replaydragdrop').innerHTML = langStrings.dragon;
+                            }
+                            break;
+                        }
+                    }
+                } else {
+                    document.getElementById('replaydragdrop').innerHTML = langStrings.dragon;
+                }
+            } else {
+                document.getElementById('replayer').innerHTML = langStrings.iteration + ' ' + iter;
+                document.getElementById('replayer').style.color = 'black';
+                document.getElementById('replaydragdrop').innerHTML = langStrings.dragoff;
+            }
         }
 
         /**
@@ -3947,16 +4061,18 @@
             st.id = 'clustering';
             ctrlDiv.appendChild(st);
 
-            // Stop clustering control button.
-            var stop = document.createElement('button');
-            stop.id = 'stop';
-            stop.innerHTML = '&#9606'; // 9606=stop.
-            stop.addEventListener('click', stopClustering);
-            ctrlDiv.appendChild(stop);
+            // Placeholder for student drag and drop text.
+            var dd = document.createElement('p');
+            dd.innerHTML = '&nbsp';
+            dd.id = 'dragdrop';
+            dd.style.marginTop = '-12px';
+            ctrlDiv.appendChild(dd);
 
             // Play/pause clustering control button.
             var playPause = document.createElement('button');
             playPause.id = 'play-pause';
+            playPause.style.marginLeft = '5px';
+            playPause.style.marginRight = '5px';
             playPause.innerHTML = '&#9654'; // 9654=play.
             playPause.addEventListener('click', doPlayPause);
             playPause.disabled = true;
@@ -3964,12 +4080,22 @@
             // Steppng clustering control button.
             var playStep = document.createElement('button');
             playStep.id = 'play-step';
-            playStep.innerHTML = '&#9654&#9614'; // 9654=play, 9614=bar.
+            playStep.style.marginLeft = '5px';
+            playStep.innerHTML = '&#9654&nbsp&nbsp&#9614'; // 9654=play, 9614=bar.
             playStep.addEventListener('click', doPlayStep.bind(this, playPause));
             playStep.disabled = true;
 
             ctrlDiv.appendChild(playStep);
             ctrlDiv.appendChild(playPause);
+
+            // Stop clustering control button.
+            var stop = document.createElement('button');
+            stop.id = 'stop';
+            stop.style.marginTop = '5px';
+            stop.style.marginLeft = '5px';
+            stop.innerHTML = langStrings.reset;
+            stop.addEventListener('click', stopClustering);
+            ctrlDiv.appendChild(stop);
 
             return ctrlDiv;
         }
@@ -4002,6 +4128,7 @@
 
             // Reset displayed text.
             document.getElementById('clustering').innerHTML = '&nbsp';
+            document.getElementById('dragdrop').innerHTML = '&nbsp';
             document.getElementById('play-pause').innerHTML = '&#9654'; // 9654=play.
             document.getElementById('play-pause').disabled = true;
             document.getElementById('play-step').disabled = true;
@@ -4046,6 +4173,7 @@
                 clearInterval(clusterAnimInterval);
                 clusterAnimInterval = undefined;
                 playPause.innerHTML = '&#9654'; // 9654=play.
+                clusterSlider.removeAttribute('disabled');
             } else {
                 // Run single iteration.
                 runClusteringIter();
@@ -4128,6 +4256,8 @@
                 drawClusteringCentroids();
 
                 document.getElementById('clustering').innerHTML = langStrings.randcentroids;
+                document.getElementById('dragdrop').innerHTML = langStrings.dragoff;
+                document.getElementById('clustering').style.color = 'black';
 
                 // Show clustering results in log panel.
                 var clusterMembers = logClusteringResults(clusterIters);
@@ -4511,12 +4641,15 @@
                 // If the total distance is less than threshold, then convergence.
                 if (total <= convergenceDistance) {
                     out = langStrings.convergence;
+                    document.getElementById('clustering').style.color = 'green';
                     converged = true;
                 }
             }
 
             // Update clustering status text.
             document.getElementById('clustering').innerHTML = out;
+            document.getElementById('dragdrop').innerHTML =
+                iter > 0 && !converged ? langStrings.dragon : langStrings.dragoff;
 
             // Show clustering results in log panel.
             var clusterMembers = logClusteringResults(iter);
@@ -4610,9 +4743,15 @@
         function logClusteringResults(iter) {
 
             // Log panel text.
-            var lpt = langStrings.numstudents + ': ' + Object.keys(scaledCentroids).length + '\n' +
-                langStrings.numofclusters + ': ' + centroids.length + '\n' +
-                langStrings.iteration + ': ' + iter + '\n';
+            var lpt = langStrings.numstudents + ': ' + Object.keys(scaledCentroids).length + '<br>' +
+                langStrings.numofclusters + ': ' + centroids.length + '<br>' +
+                langStrings.iteration + ': ' + iter + '<br>';
+
+            if (document.getElementById('clustering') &&
+                document.getElementById('clustering').innerHTML == langStrings.convergence) {
+
+                lpt += '<span style="color:green">' + langStrings.convergence + '</span><br>';
+            }
 
             // Get membership data for log panel and server.
             var serverData = [],
@@ -4620,18 +4759,20 @@
                 dx,
                 dy,
                 d,
-                key;
+                key,
+                c;
 
             for (i = 0; i < centroids.length; i++) {
 
                 dx = centroids[i].x - width / 2;
                 dy = centroids[i].y - height / 2;
                 d = Math.sqrt(dx * dx + dy * dy);
+                c = centroids[i].colour;
 
                 // Add distance to cluster.
-                lpt += langStrings.disttocluster + ' ' + i + ': ' +
-                    Math.round(d, 2) + '\n' + langStrings.cluster + ' ' + i +
-                    ' ' + langStrings.members + ': ' + '[';
+                lpt += langStrings.disttocluster + ' <span style="color:' + c + '">' +
+                    c + '</span>: ' + Math.round(d, 2) + '<br>' + langStrings.cluster +
+                    ' ' + c + ' ' + langStrings.members + ': ' + '[';
 
                 serverData[i] = [];
 
@@ -4646,12 +4787,12 @@
                 if (lpt.indexOf(',', lpt.length - 3) != -1) {
                     lpt = lpt.slice(0, -2);
                 }
-                lpt += ']\n';
+                lpt += ']<br>';
             }
-            lpt += '\n';
+            lpt += '<br>';
 
             // Write iteration results to log panel.
-            logPanel.value = lpt + logPanel.value;
+            logPanel.innerHTML = lpt + logPanel.innerHTML;
 
             return serverData;
         }
@@ -4807,52 +4948,64 @@
 
             clusterSlider.style.height = (height - btH - ctH - 120) + 'px';
 
-            // Add checkbox for geometric/decomposed centroid calculation.
-            var cbox = document.createElement('input');
-            cbox.id = 'centroid-checkbox';
-            cbox.type = 'checkbox';
-            cbox.style = 'margin-top: 30px';
+            // Add radio buttons for geometric/decomposed centroid calculation.
+            var radio = document.createElement('input');
+            radio.type = 'radio';
+            radio.name = 'centroid-type';
+            radio.value = 'geometric';
+            radio.style = 'margin-top: 40px';
+            radio.checked = true;
+            radio.addEventListener('click', radioClick);
 
-            // Swap centroid calculation when clicked.
-            cbox.addEventListener('click', function() {
-
-                // ...But only when slider is at first position
-                // and no clustering has been started.
-                if (clusterSliderValue != 1 || clustering) {
-                    this.checked = !this.checked;
-                    return;
-                }
-
-                useGeometricCentroids = this.checked;
-                graph.selectAll('.centroid').remove();
-
-                // Fake student menu options array, not available here.
-                var options = [],
-                    i = 0,
-                    student;
-                for (student in hullCentroids) {
-
-                    options[i++] = {
-                        value:    student,
-                        selected: true,
-                        colour:   hullCentroids[student].colour
-                    };
-                }
-
-                // Calculate the centroids and restart clustering.
-                if (useGeometricCentroids) {
-                    getGeometricCentroids(options);
-                } else {
-                    getDecomposedCentroids(options);
-                }
-                doCluster();
-            });
-            clusterSlider.appendChild(cbox);
-
-            // Add checkbox label.
             var label = document.createElement('label');
+            label.appendChild(radio);
             label.appendChild(document.createTextNode(langStrings.geometrics));
             clusterSlider.appendChild(label);
+
+            // No decomposed button when using LORD.
+            if (Object.keys(lordLinks).length == 0) {
+
+                radio = document.createElement('input');
+                radio.type = 'radio';
+                radio.name = 'centroid-type';
+                radio.value = 'decomposed';
+                radio.addEventListener('click', radioClick);
+
+                label = document.createElement('label');
+                label.appendChild(radio);
+                label.appendChild(document.createTextNode(langStrings.decomposed));
+                clusterSlider.appendChild(label);
+            }
+        }
+
+        /**
+         * Event listener for radio buttons, which swaps centroid types when called.
+         */
+        function radioClick() {
+
+            useGeometricCentroids = this.value == 'geometric' ? true : false;
+            graph.selectAll('.centroid').remove();
+
+            // Fake student menu options array, not available here.
+            var options = [],
+                i = 0,
+                student;
+            for (student in hullCentroids) {
+
+                options[i++] = {
+                    value:    student,
+                    selected: true,
+                    colour:   hullCentroids[student].colour
+                };
+            }
+
+            // Calculate the centroids and restart clustering.
+            if (useGeometricCentroids) {
+                getGeometricCentroids(options);
+            } else {
+                getDecomposedCentroids(options);
+            }
+            doCluster();
         }
 
         /**
@@ -4863,6 +5016,9 @@
          * @param {number} handle - The slider handle, index into values array
          */
         function updateClusterSlider(values, handle) {
+
+            var radios,
+                r;
 
             switch (parseInt(values[handle])) {
 
@@ -4877,9 +5033,12 @@
                     clusterSliderValue = 1;
                     clusteringCase1();
 
-                    // If not clustering, then enable centroid cehckbox.
-                    if (!clustering && document.getElementById('centroid-checkbox')) {
-                        document.getElementById('centroid-checkbox').disabled = false;
+                    // If not clustering, then enable centroid type radio buttons.
+                    if (!clustering) {
+                        radios = document.getElementsByName('centroid-type');
+                        for (r in radios) {
+                            radios[r].disabled = false;
+                        }
                     }
                     break;
 
@@ -4889,12 +5048,20 @@
                     clusterSliderValue = 2;
                     clusteringCase2();
 
-                    // Disable centroid checkbox.
-                    document.getElementById('centroid-checkbox').disabled = true;
+                    // Disable centroid type radio buttons.
+                    radios = document.getElementsByName('centroid-type');
+                    for (r in radios) {
+                        radios[r].disabled = true;
+                    }
 
                     // Disable play and step buttons.
                     document.getElementById('play-pause').disabled = true;
                     document.getElementById('play-step').disabled = true;
+
+                    // Student drag on, but not allowed right now, so change message.
+                    if (document.getElementById('dragdrop').innerHTML == langStrings.dragon) {
+                        document.getElementById('dragdrop').innerHTML = '--';
+                    }
                     break;
 
                 // Position 3 allows selection of the number of clusters.
@@ -4923,6 +5090,11 @@
                     if (document.getElementById('clustering').innerHTML == langStrings.convergence) {
                         document.getElementById('play-pause').disabled = true;
                         document.getElementById('play-step').disabled = true;
+                    }
+
+                    // Student drag message was changed, reset it.
+                    if (document.getElementById('dragdrop').innerHTML == '--') {
+                        document.getElementById('dragdrop').innerHTML = langStrings.dragon;
                     }
                     break;
             }
@@ -4990,6 +5162,8 @@
                 .transition(trans)
                 .style('display', 'block')
                 .style('opacity', 1.0);
+
+            ddd.selectAll('.clustering-centroid').raise();
         }
 
         /**
@@ -5012,9 +5186,11 @@
                 centreY = height / 2,
                 key;
 
-            scaledCentroids = {};
-            for (key in hullCentroids) {
-                scaledCentroids[key] = {x: 0, y: 0};
+            if (!scaledCentroids) {
+                scaledCentroids = {};
+                for (key in hullCentroids) {
+                    scaledCentroids[key] = {x: 0, y: 0};
+                }
             }
 
             coordsData.centre = {x: cx, y: cy};
@@ -5333,7 +5509,7 @@
             copy.innerHTML = langStrings.copy;
 
             copy.addEventListener('click', function() {
-                logPanel.select();
+                window.getSelection().selectAllChildren(logPanel);
                 document.execCommand('copy');
             });
 
@@ -5356,10 +5532,8 @@
                 // print-selected-div-instead-complete-page.
                 var mywindow = window.open();
 
-                var txt = logPanel.value.replace(/\n/g, '<br>');
-
                 mywindow.document.write('<html><head></head><body>');
-                mywindow.document.write(txt);
+                mywindow.document.write(logPanel.innerHTML);
                 mywindow.document.write('</body></html>');
 
                 mywindow.print();
@@ -5376,15 +5550,12 @@
             lp.appendChild(print);
 
             // Make the log panel.
-            logPanel = document.createElement('textarea');
+            logPanel = document.createElement('div');
             logPanel.readOnly = true;
+            logPanel.style.overflow = 'scroll';
 
-            logPanel.rows = 24;
-            if (navigator.userAgent.indexOf('Chrome') != -1) {
-                logPanel.cols = 28;
-            } else {
-                logPanel.cols = 20;
-            }
+            logPanel.style.width = '200px';
+            logPanel.style.height = height + 'px';
 
             logPanel.style.resize = 'none';
             logPanel.style.border = '2px solid black';
@@ -5531,6 +5702,7 @@
             // Update clustering status text.
             var out = langStrings.iteration + ': ' + clusterIters;
             document.getElementById('clustering').innerHTML = out;
+            document.getElementById('dragdrop').innerHTML = langStrings.dragon;
 
             // Show clustering results in log panel.
             var clusterMembers = logClusteringResults(clusterIters);
@@ -5610,7 +5782,8 @@
             ddd.selectAll('.text').remove();
             ddd.selectAll('rect').remove();
 
-            if (clustering) {
+            if (clustering && (replaying || clusterSliderValue == 3) &&
+                getCurrentIteration() !== null) {
                 graphNodes.style('display', 'none').style('opacity', 0.0);
                 graphLinks.remove();
             }
@@ -5637,14 +5810,22 @@
             var centres = clusterSliderValue == 1 ? hullCentroids : scaledCentroids;
 
             // Make the text.
+            var studentName = sid;
+            users.forEach(function(u) {
+                if (u.id == sid) {
+                    studentName = showStudentNames == 1 ? u.firstname + ' ' + u.lastname : u.id;
+                }
+            });
+
+            var rWidth = showStudentNames == 1 ? 70 : 30;
             var t = graph.append('text')
                 .attr('class', 'text')
                 .attr('id', 't-' + sid)
                 .attr('y', centres[sid].y + 32)
                 .attr('dy', '.40em')
                 .style('pointer-events', 'none')
-                .text(sid)
-                .call(wrap, 30, centres[sid].x - (30 + 6) / 2 + 8, rtrn);
+                .text(studentName)
+                .call(wrap, rWidth, centres[sid].x - (rWidth + 6) / 2 + 8, rtrn);
 
             // Get rectangle height.
             var rh = rtrn[0] * 18 + 16;
@@ -5652,22 +5833,23 @@
             // If node near bottom of graph area, move text above node.
             if (rh + centres[sid].y + 10 >= height) {
                 t.attr('y', height - rh - (height - centres[sid].y))
-                    .text(sid)
-                    .call(wrap, 30, centres[sid].x - (30 + 6) / 2 + 8, rtrn);
+                    .text(studentName)
+                    .call(wrap, rWidth, centres[sid].x - (rWidth + 6) / 2 + 8, rtrn);
             }
 
             // Make the rectange background.
             r.attr('id', 'r-' + sid)
-                .attr('x', centres[sid].x - (30 + 6) / 2)
+                .attr('x', centres[sid].x - (rWidth + 6) / 2)
                 .attr('y', rh + centres[sid].y + 10 <= height ? centres[sid].y + 16 :
                       height - rh - 16 - (height - centres[sid].y))
-                .attr('width', 30 + 16)
+                .attr('width', rWidth + 16)
                 .attr('height', rh)
                 .style('stroke', 'black')
                 .style('fill', 'yellow');
 
             // Draw the student's behaviour graph.
-            if (clustering) {
+            if (clustering && (replaying || clusterSliderValue == 3) &&
+                getCurrentIteration() !== null) {
 
                 graphLinks.remove();
 
@@ -5762,9 +5944,13 @@
         function centroidClick(user, key, cluster) {
 
             // Only show when clustering and only one per user.
-            if (!clustering || document.getElementById('textbox-' + user)) {
+            if (!clustering ||
+                document.getElementById('textbox-' + user) ||
+                getCurrentIteration() === null) {
                 return;
-            } else if (getCurrentIteration() === null) {
+
+            } else if (!replaying && clustering && clusterSliderValue != 3) {
+                // Fixes bug where comment box showing when should not.
                 return;
             }
 

@@ -61,7 +61,7 @@ class block_behaviour extends block_base {
      * @return stdClass
      */
     public function get_content() {
-        global $COURSE, $DB;
+        global $COURSE, $DB, $USER;
 
         if ($this->content !== null) {
             return $this->content;
@@ -70,7 +70,20 @@ class block_behaviour extends block_base {
         // Do not show block for student users.
         $context = context_course::instance($COURSE->id);
         if (!has_capability('block/behaviour:view', $context)) {
-            return null;
+
+            // ... But might need to show their study ID.
+            if (get_config('block_behaviour', 'showstudyid')) {
+
+                $studyid = block_behaviour_get_study_id($COURSE->id, $USER->id);
+                $this->content = new stdClass();
+                $this->content->text = get_string('studyid', 'block_behaviour', $studyid);
+                $this->content->footer = "";
+
+                return $this->content;
+
+            } else {
+                return null;
+            }
         }
 
         // When the block is first installed.
@@ -99,17 +112,15 @@ class block_behaviour extends block_base {
 
         // Link to the clustering replay stage.
         $this->content->text .= html_writer::tag('a', get_string("launchreplay", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/view.php', array(
-                'id'     => $COURSE->id,
-                'replay' => true
+            array('href' => new moodle_url('/blocks/behaviour/replay.php', array(
+                'id'     => $COURSE->id
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to module node positioning.
         $this->content->text .= html_writer::tag('a', get_string("launchconfiguration", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/view.php', array(
+            array('href' => new moodle_url('/blocks/behaviour/position.php', array(
                 'id'  => $COURSE->id,
-                'pos' => true
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
@@ -119,6 +130,32 @@ class block_behaviour extends block_base {
                 'id' => $COURSE->id
             ))));
         $this->content->text .= html_writer::empty_tag('br');
+
+        // Link to the setting for LORD integration, but only when LORD installed and
+        // plugin is configured to use LORD and there is a LORD graph generated.
+        if ($DB->record_exists('block', ['name' => 'lord']) &&
+                get_config('block_behaviour', 'uselord') &&
+                $DB->record_exists('block_lord_scales', ['courseid' => $COURSE->id])) {
+
+            $this->content->text .= html_writer::tag('a', get_string("settings", "block_behaviour"),
+                array('href' => new moodle_url('/blocks/behaviour/custom_settings.php', array(
+                    'id' => $COURSE->id
+                ))));
+            $this->content->text .= html_writer::empty_tag('br');
+        }
+        $this->content->text .= html_writer::empty_tag('br');
+
+        // Advanced export feature.
+        $this->content->text .= html_writer::div(get_string("exportdata", "block_behaviour"));
+
+        // A non-displayed target for form submit, used by both import and export.
+        $this->content->text .= html_writer::tag
+            ('iframe', '', array('style' => 'display:none', 'name' => 'target'));
+
+        // Advanced export form.
+        $url = new moodle_url('/blocks/behaviour/export-all.php', array('courseid' => $COURSE->id));
+        $export = new block_behaviour_export_all_form($url, null, 'post', 'target', array('id' => "export-all-form"));
+        $this->content->text .= $export->render();
 
         // If user has no export capability, nothing else to show in block.
         if (!has_capability('block/behaviour:export', $context)) {
@@ -132,10 +169,6 @@ class block_behaviour extends block_base {
 
         // Export feature.
         $this->content->text .= html_writer::div(get_string("exportlogs", "block_behaviour"));
-
-        // A non-displayed target for form submit, used by both import and export.
-        $this->content->text .= html_writer::tag
-            ('iframe', '', array('style' => 'display:none', 'name' => 'target'));
 
         // Export form.
         $url = new moodle_url('/blocks/behaviour/export-web.php', array('courseid' => $COURSE->id));

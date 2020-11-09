@@ -101,59 +101,7 @@ $DB->insert_record('block_behaviour_scales', (object) array(
     'scale'    => $scale
 ));
 
-// Get all student's access logs.
-$logs = $DB->get_records('block_behaviour_imported',
-    array('courseid' => $courseid), 'userid, time');
-
-reset($logs);
-$studentid = $logs[key($logs)]->userid;
-$x = 0; $y = 0; $n = 0;
-$clicks = [];
-$clicks[$studentid] = [];
-
-// Sum the coordinate values from module clicks to recalculate centroids.
-foreach ($logs as $log) {
-
-    // If we have processed all this student's logs, create or update the centroid record.
-    if ($studentid != $log->userid) {
-
-        block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
-
-        // Reset values for next student.
-        $x = 0; $y = 0; $n = 0;
-        $studentid = $log->userid;
-        $clicks[$studentid] = [];
-    }
-
-    // If the node related to the module clicked on is visible, sum coordinates.
-    if (isset($nds[$log->moduleid]) && $nds[$log->moduleid]['visible']) {
-
-        $x += $nds[$log->moduleid]['xcoord'];
-        $y += $nds[$log->moduleid]['ycoord'];
-        $n++;
-        $clicks[$studentid][] = $log->moduleid;
-    }
-}
-// Insert record for last studentid.
-block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n);
-
-// Update decomposed centroids.
-$records = [];
-foreach ($clicks as $studentid => $data) {
-
-    $centre = $data[intval(count($data) / 2)];
-
-    $records[] = (object) array(
-        'courseid'  => $courseid,
-        'userid'    => $userid,
-        'coordsid'  => $coordsid,
-        'studentid' => $studentid,
-        'centroidx' => $nds[$centre]['xcoord'],
-        'centroidy' => $nds[$centre]['ycoord']
-    );
-}
-
-$DB->insert_records('block_behaviour_centres', $records);
+block_behaviour_update_centroids_and_centres($courseid, $userid, $coordsid, $nds);
 
 die('Node coordinates and centroids updated at '.time());
 

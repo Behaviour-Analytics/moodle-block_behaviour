@@ -15,7 +15,7 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * Called from the block for the graphing and clustering stages.
+ * Called from the block for the node positioning stage.
  *
  * @package block_behaviour
  * @author Ted Krahn
@@ -87,48 +87,26 @@ if ($gotallnodes) {
     }
 }
 
-$logs = null;
-if (count($nodes) == 0) {
-    // Graph has never been rendered before, but need mod ids to get logs.
-    foreach ($mods as $mod) {
-        $notnodes[$mod['id']] = 1;
-    }
-    list($loginfo, $userinfo) = block_behaviour_get_log_data($notnodes, $course, $logs);
+// If doing resource node configuration.
 
-} else {
-    list($loginfo, $userinfo) = block_behaviour_get_log_data($nodes, $course, $logs);
-
-    // When using LORD graph, there is no centroid data.
-    $params = array(
-        'courseid' => $course->id,
-        'userid'   => $USER->id,
-        'coordsid' => $coordsid
-    );
-    if (!$DB->record_exists('block_behaviour_centroids', $params)) {
-        block_behaviour_update_centroids_and_centres($course->id, $USER->id, $coordsid, $nodes);
-    }
-}
-
-// Combine all data for transfer to client.
 $out = array(
-    'logs'        => $loginfo,
-    'users'       => $userinfo,
+    'logs'        => [],
+    'users'       => [ array('id' => 0) ],
     'mods'        => $mods,
     'panelwidth'  => $panelwidth,
     'legendwidth' => $legendwidth,
     'name'        => $course->shortname,
+    'positioning' => true,
     'nodecoords'  => $nodes,
     'links'       => $links,
     'userid'      => $USER->id,
     'courseid'    => $course->id,
     'scale'       => $scale,
     'lastchange'  => $coordsid,
-    'comments'    => [],
     'gotallnodes' => $gotallnodes,
     'strings'     => block_behaviour_get_lang_strings(),
     'sesskey'     => sesskey(),
     'version36'   => $version36,
-    'debugcentroids' => $debugcentroids,
     'coordsscript'   => (string) new moodle_url('/blocks/behaviour/update-coords.php'),
     'clustersscript' => (string) new moodle_url('/blocks/behaviour/update-clusters.php'),
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
@@ -137,16 +115,70 @@ $out = array(
     'showstudentnames' => get_config('block_behaviour', 'shownames'),
 );
 
-if ($debugcentroids) {
-    $out['centroids'] = block_behaviour_get_centroids($course->id, $coordsid);
+// If user is researcher, get all graph configurations for this course.
+if (get_config('block_behaviour', 'c_'.$course->id.'_p_'.$USER->id)) {
+
+    $graphs = [];
+    $edges = [];
+    $scales = [];
+    $changes = [];
+    $names = [];
+    $modules = [];
+    $setnames = [];
+
+    $users = $DB->get_records('block_behaviour_coords', array('courseid' => $course->id), '', 'distinct userid');
+
+    foreach ($users as $user) {
+
+        // Get the graph data for this user.
+        if ($USER->id == $user->userid) { // Data is same as global.
+
+            $scales[$user->userid]  = $scale;
+            $changes[$user->userid] = $coordsid;
+            $graphs[$user->userid] = $nodes;
+            $edges[$user->userid] = $links;
+
+        } else { // Data is for different user.
+
+            list($cid, $scl, $nds, $numnds) =
+                block_behaviour_get_scale_and_node_data(0, $user->userid, $course);
+
+            $scales[$user->userid]  = $scl;
+            $changes[$user->userid] = $cid;
+            $graphs[$user->userid] = $nds;
+            $edges[$user->userid] = [];
+        }
+
+        $modules[$user->userid] = $mods;
+
+        // Get the user's username.
+        $r = $DB->get_record('user', array('id' => $user->userid));
+        $names[$user->userid] = $r->firstname . ' ' . $r->lastname;
+        $setnames[$user->userid] = $course->shortname;
+    }
+
+    if (!isset($scales[$USER->id])) {
+        // No graph configurations yet for this user.
+        $scales[$USER->id]  = 1.0;
+        $changes[$USER->id] = 0;
+        $modules[$USER->id] = $mods;
+        $names[$USER->id] = $DB->get_field('user', 'username', array('id' => $USER->id));
+        $setnames[$USER->id] = $course->shortname;
+    }
+
+    // Add to outgoing data.
+    $out['graphs']   = $graphs;
+    $out['alllinks'] = $edges;
+    $out['scales']   = $scales;
+    $out['changes']  = $changes;
+    $out['names']    = $names;
+    $out['allmods']  = $modules;
+    $out['setnames'] = $setnames;
 }
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/view.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/position.php', array('id' => $course->id));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
-
-// CSS.
-$PAGE->requires->css('/blocks/behaviour/javascript/noUiSlider/distribute/nouislider.min.css');
 
 // JavaScript.
 $PAGE->requires->js_call_amd('block_behaviour/modules', 'init');

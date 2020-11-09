@@ -72,6 +72,10 @@ echo html_writer::tag('a', get_string('docshowconfig', 'block_behaviour'), array
     'href' => new moodle_url('/blocks/behaviour/documentation.php#howconfig', $cid)));
 echo html_writer::empty_tag('br');
 
+echo html_writer::tag('a', get_string('docshowlord', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howlord', $cid)));
+echo html_writer::empty_tag('br');
+
 if (has_capability('block/behaviour:export', $context)) {
     echo html_writer::tag('a', get_string('docshowset', 'block_behaviour'), array(
     'href' => new moodle_url('/blocks/behaviour/documentation.php#howset', $cid)));
@@ -85,6 +89,11 @@ if (has_capability('block/behaviour:export', $context)) {
     'href' => new moodle_url('/blocks/behaviour/documentation.php#howimport', $cid)));
     echo html_writer::empty_tag('br');
 }
+
+echo html_writer::tag('a', get_string('docsissues', 'block_behaviour'), array(
+    'href' => 'https://github.com/Behaviour-Analytics/moodle-block_behaviour/issues'));
+echo html_writer::empty_tag('br');
+
 echo html_writer::empty_tag('br');
 
 // What is Behaviour Analytics?
@@ -122,6 +131,14 @@ echo html_writer::empty_tag('br');
 echo html_writer::div(get_string('docshowconfig', 'block_behaviour'), 'bigger', array('id' => 'howconfig'));
 echo html_writer::empty_tag('br');
 echo html_writer::div(get_string('docsconfig1', 'block_behaviour'));
+echo html_writer::empty_tag('br');
+echo html_writer::empty_tag('br');
+
+echo html_writer::div(get_string('docshowlord', 'block_behaviour'), 'bigger', array('id' => 'howlord'));
+echo html_writer::empty_tag('br');
+echo html_writer::div(get_string('docslord1', 'block_behaviour'));
+echo html_writer::empty_tag('br');
+echo html_writer::div(get_string('docslord2', 'block_behaviour'));
 echo html_writer::empty_tag('br');
 echo html_writer::empty_tag('br');
 
