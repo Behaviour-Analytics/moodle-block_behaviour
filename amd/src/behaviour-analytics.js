@@ -40,7 +40,8 @@
         var coordsScript, // Updates the node coordinates during node positioning.
             clustersScript, // Updates the clustering results and membership changes.
             commentsScript, // Updates the teacher comments about centroids.
-            manualScript; // Updates manual clustering during replay.
+            manualScript, // Updates manual clustering during replay.
+            deleteScript; // Deletes the selected clustering data.
 
         // These variables get their values from the server data.
         var logs, // Array of all logs from the server.
@@ -202,6 +203,7 @@
             clustersScript = incoming.clustersscript;
             commentsScript = incoming.commentsscript;
             manualScript = incoming.manualscript;
+            deleteScript = incoming.deletescript;
             sessionKey = incoming.sesskey;
             gotAllNodes = incoming.gotallnodes;
             replaying = incoming.replaying;
@@ -1412,7 +1414,7 @@
                 }
             };
             req.send('cid=' + courseId + '&data=' + JSON.stringify(outData) +
-                     '&sesskey=' + sessionKey);
+                   '&sesskey=' + sessionKey);
         }
 
         /**
@@ -3763,9 +3765,37 @@
             // Step forward replay button.
             var playStep2 = document.createElement('button');
             playStep2.id = 'replay-forward';
+            playStep2.style.marginRight = '80px';
             playStep2.innerHTML = '&#9654&nbsp&nbsp&#9614';
             playStep2.addEventListener('click', replayForward.bind(this, true));
             ctrlDiv.appendChild(playStep2);
+
+            // Step forward replay button.
+            var del = document.createElement('button');
+            del.id = 'delete-button';
+            del.innerHTML = langStrings.delbutton;
+            del.addEventListener('click', deleteClusteringData);
+            ctrlDiv.appendChild(del);
+        }
+
+        /**
+         * Called to delete the selected clustering data set.
+         */
+        function deleteClusteringData() {
+
+            if (confirm(langStrings.delconfirm)) {
+
+                var menu = document.getElementById('replay-select');
+                if (menu.selectedIndex > -1) {
+
+                    var value = menu.options[menu.selectedIndex].value;
+                    if (value.length > 0) {
+                        callServer(deleteScript, value.replace('-', '_'));
+                        menu.options[menu.selectedIndex] = null;
+                        replayStop();
+                    }
+                }
+            }
         }
 
         /**
@@ -3790,10 +3820,8 @@
             // Unselect selected clustering run.
             var sel = document.getElementById('replay-select');
 
-            for (var i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].selected) {
-                    sel.options[i].selected = false;
-                }
+            if (sel.selectedIndex > -1) {
+                sel.options[sel.selectedIndex].selected = false;
             }
         }
 

@@ -233,6 +233,7 @@ $out = array(
     'clustersscript' => (string) new moodle_url('/blocks/behaviour/update-clusters.php'),
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
     'manualscript'   => (string) new moodle_url('/blocks/behaviour/update-manual-clusters.php'),
+    'deletescript'   => (string) new moodle_url('/blocks/behaviour/delete-cluster-data.php'),
     'iframeurl'      => (string) new moodle_url('/'),
     'showstudentnames' => get_config('block_behaviour', 'shownames'),
 );

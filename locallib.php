@@ -754,6 +754,8 @@ function block_behaviour_get_lang_strings() {
         'decomposed'    => get_string('decomposed', 'block_behaviour'),
         'dragon'        => get_string('dragon', 'block_behaviour'),
         'dragoff'       => get_string('dragoff', 'block_behaviour'),
+        'delbutton'     => get_string('delbutton', 'block_behaviour'),
+        'delconfirm'    => get_string('delconfirm', 'block_behaviour'),
     );
 }
 
