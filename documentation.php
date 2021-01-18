@@ -88,6 +88,10 @@ if (has_capability('block/behaviour:export', $context)) {
     echo html_writer::tag('a', get_string('docshowimport', 'block_behaviour'), array(
     'href' => new moodle_url('/blocks/behaviour/documentation.php#howimport', $cid)));
     echo html_writer::empty_tag('br');
+
+    echo html_writer::tag('a', get_string('docshowdelete', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdelete', $cid)));
+    echo html_writer::empty_tag('br');
 }
 
 echo html_writer::tag('a', get_string('docsissues', 'block_behaviour'), array(
@@ -164,6 +168,12 @@ if (has_capability('block/behaviour:export', $context)) {
     echo html_writer::div(get_string('docsexport', 'block_behaviour'));
     echo html_writer::empty_tag('br');
     echo html_writer::div(get_string('docsimport', 'block_behaviour'));
+    echo html_writer::empty_tag('br');
+    echo html_writer::empty_tag('br');
+
+    echo html_writer::div(get_string('docshowdelete', 'block_behaviour'), 'bigger', array('id' => 'howdelete'));
+    echo html_writer::empty_tag('br');
+    echo html_writer::div(get_string('docsdelete1', 'block_behaviour'));
     echo html_writer::empty_tag('br');
     echo html_writer::empty_tag('br');
 }

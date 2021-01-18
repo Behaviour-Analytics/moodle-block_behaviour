@@ -2161,3 +2161,45 @@ class block_behaviour_settings_form extends moodleform {
         $this->add_action_buttons();
     }
 }
+
+/**
+ * Form definition for deleting data.
+ *
+ * @author Ted Krahn
+ * @copyright 2020 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_delete_form extends moodleform {
+
+    /**
+     * Function to make the form.
+     */
+    public function definition() {
+        global $DB, $COURSE, $USER;
+
+        $mform = &$this->_form;
+
+        // Course id.
+        $mform->addElement('hidden', 'id');
+        $mform->setType('id', PARAM_INT);
+
+        $mform->addElement('header', 'delete_header', get_string('deleteall', 'block_behaviour'));
+
+        // Delete clustering data.
+        $mform->addElement('advcheckbox', 'del_cluster', get_string('delcluster', 'block_behaviour'),
+            get_string('delclusterdesc', 'block_behaviour'));
+        $mform->setDefault('del_cluster', 0);
+
+        // Delete graph configuration data.
+        $mform->addElement('advcheckbox', 'del_graph', get_string('delgraph', 'block_behaviour'),
+            get_string('delgraphdesc', 'block_behaviour'));
+        $mform->setDefault('del_graph', 0);
+
+        // Delete student log data.
+        $mform->addElement('advcheckbox', 'del_user', get_string('deluser', 'block_behaviour'),
+            get_string('deluserdesc', 'block_behaviour'));
+        $mform->setDefault('del_graph', 0);
+
+        $this->add_action_buttons();
+    }
+}

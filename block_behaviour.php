@@ -131,6 +131,15 @@ class block_behaviour extends block_base {
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
+        // Link to the delete data page, only for admins.
+        if (has_capability('block/behaviour:export', $context)) {
+            $this->content->text .= html_writer::tag('a', get_string("deldata", "block_behaviour"),
+                array('href' => new moodle_url('/blocks/behaviour/delete-data.php', array(
+                    'id' => $COURSE->id
+                ))));
+            $this->content->text .= html_writer::empty_tag('br');
+        }
+
         // Link to the setting for LORD integration, but only when LORD installed and
         // plugin is configured to use LORD and there is a LORD graph generated.
         if ($DB->record_exists('block', ['name' => 'lord']) &&
