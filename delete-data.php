@@ -59,10 +59,10 @@ if ($mform->is_cancelled()) {
     // Handle submitted form.
 
     $params = array(
-        'courseid' => $course->id,
-        'userid' => $USER->id
+        'courseid' => $course->id
     );
 
+    // Delete clustering data.
     if ($formdata->del_cluster) {
         $DB->delete_records('block_behaviour_clusters', $params);
         $DB->delete_records('block_behaviour_man_clusters', $params);
@@ -71,6 +71,7 @@ if ($mform->is_cancelled()) {
         $DB->delete_records('block_behaviour_comments', $params);
     }
 
+    // Delete graph configuration data.
     if ($formdata->del_graph) {
         $DB->delete_records('block_behaviour_scales', $params);
         $DB->delete_records('block_behaviour_coords', $params);
@@ -78,9 +79,17 @@ if ($mform->is_cancelled()) {
         $DB->delete_records('block_behaviour_centres', $params);
     }
 
+    // Delete student log data and reset lastsync time.
     if ($formdata->del_user) {
-        unset($params['userid']);
         $DB->delete_records('block_behaviour_imported', $params);
+
+        $rec = $DB->get_record('block_behaviour_installed', $params);
+        $DB->update_record('block_behaviour_installed', array(
+            'id' => $rec->id,
+            'courseid' => $rec->courseid,
+            'lastsync' => 0,
+            'importresult' => ''
+        ));
     }
 
     redirect($url);
