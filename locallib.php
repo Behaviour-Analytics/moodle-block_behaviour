@@ -253,7 +253,7 @@ function block_behaviour_get_lord_link_data($courseid, $coordsid) {
 }
 
 /**
- * Get the log data.
+ * Get the log and user data.
  *
  * @param array $nodes The map of module ids
  * @param stdClass $course The course object
@@ -263,7 +263,7 @@ function block_behaviour_get_lord_link_data($courseid, $coordsid) {
 function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     global $DB;
 
-    // If these logs have already been pulled, return them.
+    // If these logs have already been pulled, use them.
     if ($globallogs) {
         $records = $globallogs;
         reset($records);
@@ -306,8 +306,8 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
     $userids = [];
     reset($records);
 
-    // Handle case where plugin is used in new course with no records
-    // still requires enroled students.
+    // Handle case where plugin is used in new course with no records,
+    // still requires enrolled students.
     if (count($records) == 0) {
         $userinfo[] = array('id' => 0, 'realId' => 0);
 
@@ -323,6 +323,27 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
                  WHERE id $insql";
         $users2 = $DB->get_records_sql($sql, $inparams);
 
+        // Get the groups for this course.
+        $groups = $DB->get_records('groups', ['courseid' => $course->id]);
+        $groupids = [];
+        $groupnames = [];
+        foreach ($groups as $group) {
+            $groupids[] = $group->id;
+            $groupnames[$group->id] = $group->name;
+        }
+
+        if (count($groupids) > 0) {
+            // Get the group members.
+            list($insql, $inparams) = $DB->get_in_or_equal($groupids, SQL_PARAMS_NAMED);
+            $sql = "SELECT id, groupid, userid FROM {groups_members}
+                     WHERE groupid $insql";
+            $groupmembers = $DB->get_records_sql($sql, $inparams);
+            $members = [];
+            foreach ($groupmembers as $gm) {
+                $members[$gm->userid] = $gm->groupid;
+            }
+        }
+
         // Build the user info array, keeping the sequential ids.
         $havenames = [];
         foreach ($users2 as $user) {
@@ -331,7 +352,8 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
                 'realId' => $user->id,
                 'username' => $user->username,
                 'firstname' => $user->firstname,
-                'lastname' => $user->lastname
+                'lastname' => $user->lastname,
+                'groupid' => isset($members[$user->id]) ? $members[$user->id] : -1
             );
             $havenames[$user->id] = 1;
         }
@@ -350,7 +372,8 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
                         'realId' => $studentid,
                         'username' => $fakeid,
                         'firstname' => $fakeid,
-                        'lastname' => ''
+                        'lastname' => '',
+                        'groupid' => -1
                     );
                 }
             }
@@ -861,7 +884,7 @@ class block_behaviour_exporter {
         }
 
         // Get currently enroled students.
-        $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
         $participants = block_behaviour_get_participants($courseid, $roleid);
 
         // Get the student id information.
@@ -1256,7 +1279,7 @@ class block_behaviour_import_form extends moodleform {
         global $COURSE, $DB;
 
         // Get current students.
-        $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
         $participants = block_behaviour_get_participants($COURSE->id, $roleid);
 
         // Get all course participants.

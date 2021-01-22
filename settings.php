@@ -105,12 +105,13 @@ if ($ADMIN->fulltree) {
         return;
     }
 
+    // Get the names of these courses.
     list($insql, $inparams) = $DB->get_in_or_equal($courseids);
     $sql = "SELECT id, shortname FROM {course} WHERE id $insql;";
     $courses = $DB->get_records_sql($sql, $inparams);
 
     // Get the roleid for students.
-    $studentroleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+    $studentroleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
 
     // Process each course.
     foreach ($courses as $course) {

@@ -154,7 +154,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         $oars = [];
 
         // Get the current participants of this course for use in SQL.
-        $roleid = $DB->get_field('role', 'id', ['archetype' => 'student']);
+        $roleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
         $participants = block_behaviour_get_participants($course->courseid, $roleid);
 
         foreach ($participants as $participant) {
