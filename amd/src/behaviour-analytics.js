@@ -399,6 +399,7 @@
                     }
                     xc = presetNodes[m.id].xcoord;
                     yc = presetNodes[m.id].ycoord;
+
                 } else if (presetNodes['g' + m.sect]) {
                     // New resource in course, but no node data.
                     vis = presetNodes['g' + m.sect].visible == 1 &&
@@ -469,24 +470,13 @@
             };
 
             // Link other group nodes to root course node.
-            if (Object.keys(ob).length > 1) {
-                for (var o in ob) {
-                    data.links[data.links.length] = {
-                        source: 'root',
-                        target: ob[o].id,
-                        weight: defaultWeight,
-                        colour: modColours.originalLinks
-                    };
-                }
-            } else {
-                data.nodes = data.nodes.filter(function(dn) {
-                    return dn.id != 'g0';
-                });
-                data.links.forEach(function(dl) {
-                    if (dl.source == 'g0') {
-                        dl.source = 'root';
-                    }
-                });
+            for (var o in ob) {
+                data.links[data.links.length] = {
+                    source: 'root',
+                    target: ob[o].id,
+                    weight: defaultWeight,
+                    colour: modColours.originalLinks
+                };
             }
 
             data.nodes[data.nodes.length] = r;
@@ -740,7 +730,7 @@
                 simulation.on('tick', tick2);
             }
 
-            // Advance the graph a little so it needs to move less at start .
+            // Advance the graph a little so it needs to move less at start.
             for (var i = 0; i < 80; i++) {
                 simulation.tick();
             }
