@@ -46,6 +46,9 @@
         // These variables get their values from the server data.
         var logs, // Array of all logs from the server.
             users, // Array of user data from server.
+            groups, // Array of group names indexed on group id.
+            groupMembers, // Array of group id indexed on student id.
+            groupMenu, // Group selection menu.
             modules, // Array of module information.
             panelWidth, // Width of left menu panel.
             legendWidth, // Width of right legend panel.
@@ -174,6 +177,8 @@
             // Get incoming data from the server.
             logs = incoming.logs;
             users = incoming.users;
+            groups = incoming.groups;
+            groupMembers = incoming.members;
             modules = incoming.mods;
             panelWidth = incoming.panelwidth;
             legendWidth = incoming.legendwidth;
@@ -655,12 +660,16 @@
                 initGraph(0.6);
 
                 setTimeout(function() {
-                    makeStudentMenu();
+                    var h = makeClusterButton();
+                    makeGroupMenu();
+                    makeStudentMenu(h);
                     makeTimeSlider();
                 }, 500);
             } else {
                 // Already have preset nodes to work with.
-                makeStudentMenu();
+                var h = makeClusterButton();
+                makeGroupMenu();
+                makeStudentMenu(h);
                 initGraph(0);
                 makeTimeSlider();
             }
@@ -1980,25 +1989,37 @@
         }
 
         /**
-         * Called to make the student select menu on the main graphing screen.
+         * Called to make the cluster/graph button.
+         *
+         * @return {number}
          */
-        function makeStudentMenu() {
+        function makeClusterButton() {
 
-            // Left panel menu.
             var sm = document.getElementById('student-menu');
 
-            // Cluster/graphing button.
             clusterButton = document.createElement('button');
             clusterButton.innerHTML = langStrings.cluster;
             clusterButton.addEventListener('click', doCluster);
             sm.appendChild(clusterButton);
-            var cbHeight = clusterButton.getBoundingClientRect().height;
+
+            return clusterButton.getBoundingClientRect().height;
+        }
+
+        /**
+         * Called to make the student select menu on the main graphing screen.
+         *
+         * @param {number} cbHeight - Height of cluster button
+         */
+        function makeStudentMenu(cbHeight) {
+
+            // Left panel menu.
+            var sm = document.getElementById('student-menu');
 
             // Student multiple select menu.
             studentMenu = document.createElement('select');
             studentMenu.multiple = true;
             studentMenu.id = 'student-select';
-            var menuHeight = height - cbHeight - 12;
+            var menuHeight = groups.length > 0 ? height - cbHeight - 120 : height - cbHeight - 12;
             studentMenu.style = 'height: ' + menuHeight + 'px;';
 
             // Shade menu item when selected.
@@ -2070,6 +2091,58 @@
             });
 
             menu.appendChild(o);
+        }
+
+        /**
+         * Called to make the group selection menu.
+         */
+        function makeGroupMenu() {
+
+            if (groups.length == 0) {
+                return;
+            }
+
+            var sm = document.getElementById('student-menu');
+
+            // Group multiple select menu.
+            groupMenu = document.createElement('select');
+            groupMenu.multiple = true;
+            groupMenu.id = 'group-select';
+            groupMenu.style = 'height: 120px;';
+
+            groupMenu.addEventListener('change', function() {
+
+                // Reset.
+                ddd.selectAll('.link').remove();
+                ddd.selectAll('.hull').remove();
+                makeLinks(graphData.links);
+                simulation.on('tick', tick1);
+                simulation.restart();
+                setTimeout(simulation.stop, 100);
+                studentMenu.options.length = 0;
+
+                // Add users to the list if they are in a selected group.
+                for (var i = 0; i < groupMenu.options.length; i++) {
+                    if (groupMenu.options[i].selected) {
+                        for (var j = 0; j < users.length; j++) {
+                            if (groupMembers[users[j].realId] == groupMenu.options[i].value) {
+                                addListItem(users[j], studentMenu);
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Add groups to menu.
+            var o;
+            for (var gid in groups) {
+                o = document.createElement('option');
+                o.value = gid;
+                o.text = groups[gid];
+                groupMenu.appendChild(o);
+            }
+
+            sm.appendChild(groupMenu);
         }
 
         /**
@@ -2705,6 +2778,7 @@
             // Replace graphing stuff.
             timeSlider.style.display = 'block';
             studentMenu.style.display = 'block';
+            groupMenu.style.display = 'block';
 
             graphNodes.style('display', 'block');
             graphNodes.style('opacity', 1.0);
@@ -2730,6 +2804,7 @@
 
             timeSlider.style.display = 'none';
             studentMenu.style.display = 'none';
+            groupMenu.style.display = 'none';
 
             ddd.selectAll(".hull").remove();
             ddd.selectAll('.text').remove();

@@ -327,6 +327,7 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
         $groups = $DB->get_records('groups', ['courseid' => $course->id]);
         $groupids = [];
         $groupnames = [];
+        $members = [];
         foreach ($groups as $group) {
             $groupids[] = $group->id;
             $groupnames[$group->id] = $group->name;
@@ -338,9 +339,19 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
             $sql = "SELECT id, groupid, userid FROM {groups_members}
                      WHERE groupid $insql";
             $groupmembers = $DB->get_records_sql($sql, $inparams);
-            $members = [];
             foreach ($groupmembers as $gm) {
                 $members[$gm->userid] = $gm->groupid;
+            }
+
+            // Ensure all students are in a group.
+            if (count($groupmembers) < count($userids)) {
+                $groupnames[0] = get_string('nogroup', 'block_behaviour');
+
+                foreach ($userids as $uid) {
+                    if (!isset($members[$uid])) {
+                        $members[$uid] = 0;
+                    }
+                }
             }
         }
 
@@ -380,7 +391,7 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
         }
     }
 
-    return [ $logs, $userinfo ];
+    return [ $logs, $userinfo, $groupnames, $members ];
 }
 
 /**
@@ -795,6 +806,11 @@ function block_behaviour_get_html_table($panelwidth, $legendwidth) {
     $table = new html_table();
     $data = [];
 
+    // Navigation links.
+    $cell0 = new html_table_cell(block_behaviour_get_nav_links());
+    $cell0->colspan = 3;
+    $data[] = new html_table_row(array($cell0));
+
     // Left side panel holds the student/teacher menu, animation controls, and cluster slider.
     $cell1 = new html_table_cell(html_writer::div('', '', array('id' => "student-menu")).
     html_writer::div('', '', array('id' => "anim-controls")).
@@ -815,11 +831,33 @@ function block_behaviour_get_html_table($panelwidth, $legendwidth) {
     // Time slider along bottom.
     $cell = new html_table_cell(html_writer::div('', '', array('id' => "slider")));
     $cell->colspan = 3;
+    $cell->attributes['height'] = '100px';
     $data[] = new html_table_row(array($cell));
 
     $table->data = $data;
 
     return $table;
+}
+
+/**
+ * Called to get the navigation links.
+ *
+ * @return string
+ */
+function block_behaviour_get_nav_links() {
+    global $COURSE;
+
+    $view = new moodle_url('/blocks/behaviour/view.php?id=' . $COURSE->id);
+    $replay = new moodle_url('/blocks/behaviour/replay.php?id=' . $COURSE->id);
+    $position = new moodle_url('/blocks/behaviour/position.php?id=' . $COURSE->id);
+    $docs = new moodle_url('/blocks/behaviour/documentation.php?id=' . $COURSE->id);
+
+    $links = html_writer::link($view, get_string('launchplugin', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        html_writer::link($docs, get_string('docsanchor', 'block_behaviour'));
+
+    return $links;
 }
 
 /**

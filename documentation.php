@@ -24,6 +24,7 @@
  */
 
 require_once(__DIR__.'/../../config.php');
+require_once(__DIR__.'/locallib.php');
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -55,6 +56,9 @@ echo $OUTPUT->header();
 
 // Make the hyperlink menu.
 $cid = array('id' => $COURSE->id);
+
+echo html_writer::div(block_behaviour_get_nav_links(), '');
+echo html_writer::div('<hr/>', '');
 
 echo html_writer::tag('a', get_string('docswhatis', 'block_behaviour'), array(
     'href' => new moodle_url('/blocks/behaviour/documentation.php#whatis', $cid)));

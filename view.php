@@ -93,10 +93,12 @@ if (count($nodes) == 0) {
     foreach ($mods as $mod) {
         $notnodes[$mod['id']] = 1;
     }
-    list($loginfo, $userinfo) = block_behaviour_get_log_data($notnodes, $course, $logs);
+    list($loginfo, $userinfo, $groupnames, $groupmembers) =
+        block_behaviour_get_log_data($notnodes, $course, $logs);
 
 } else {
-    list($loginfo, $userinfo) = block_behaviour_get_log_data($nodes, $course, $logs);
+    list($loginfo, $userinfo, $groupnames, $groupmembers) =
+        block_behaviour_get_log_data($nodes, $course, $logs);
 
     // When using LORD graph, there is no centroid data.
     $params = array(
@@ -113,6 +115,8 @@ if (count($nodes) == 0) {
 $out = array(
     'logs'        => $loginfo,
     'users'       => $userinfo,
+    'groups'      => $groupnames,
+    'members'     => $groupmembers,
     'mods'        => $mods,
     'panelwidth'  => $panelwidth,
     'legendwidth' => $legendwidth,
