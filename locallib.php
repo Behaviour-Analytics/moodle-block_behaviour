@@ -304,6 +304,8 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
 
     $userinfo = [];
     $userids = [];
+    $groupnames = [];
+    $members = [];
     reset($records);
 
     // Handle case where plugin is used in new course with no records,
@@ -326,8 +328,6 @@ function block_behaviour_get_log_data(&$nodes, &$course, &$globallogs) {
         // Get the groups for this course.
         $groups = $DB->get_records('groups', ['courseid' => $course->id]);
         $groupids = [];
-        $groupnames = [];
-        $members = [];
         foreach ($groups as $group) {
             $groupids[] = $group->id;
             $groupnames[$group->id] = $group->name;
