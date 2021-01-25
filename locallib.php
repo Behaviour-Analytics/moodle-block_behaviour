@@ -851,11 +851,13 @@ function block_behaviour_get_nav_links() {
     $replay = new moodle_url('/blocks/behaviour/replay.php?id=' . $COURSE->id);
     $position = new moodle_url('/blocks/behaviour/position.php?id=' . $COURSE->id);
     $docs = new moodle_url('/blocks/behaviour/documentation.php?id=' . $COURSE->id);
+    $delete = new moodle_url('/blocks/behaviour/delete-data.php?id=' . $COURSE->id);
 
     $links = html_writer::link($view, get_string('launchplugin', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($docs, get_string('docsanchor', 'block_behaviour'));
+        html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        html_writer::link($delete, get_string('deldata',  'block_behaviour'));
 
     return $links;
 }

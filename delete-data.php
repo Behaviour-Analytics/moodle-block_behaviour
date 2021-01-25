@@ -98,6 +98,8 @@ if ($mform->is_cancelled()) {
     // Output form.
 
     echo $OUTPUT->header();
+    echo html_writer::div(block_behaviour_get_nav_links(), '');
+    echo html_writer::div('<hr/>', '');
     $mform->display();
     echo $OUTPUT->footer();
 }
