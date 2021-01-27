@@ -1,7 +1,7 @@
 {
   "name": "moodle-block_behaviour",
   "title": "Behaviour Analytics",
-  "version": "0.7.1",
+  "version": "0.7.5",
   "author": {
     "name": "Athabasca University"
   },
