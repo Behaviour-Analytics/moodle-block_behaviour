@@ -2783,7 +2783,9 @@
             // Replace graphing stuff.
             timeSlider.style.display = 'block';
             studentMenu.style.display = 'block';
-            groupMenu.style.display = 'block';
+            if (groupMenu) {
+                groupMenu.style.display = 'block';
+            }
 
             graphNodes.style('display', 'block');
             graphNodes.style('opacity', 1.0);
@@ -4354,22 +4356,24 @@
 
                         callServer(commentsScript, data);
 
-                        // Figure out which dataset is selected.
+                        // Figure out which dataset is selected when replaying.
                         var sel = document.getElementById('replay-select');
-                        var keys;
+                        if (sel) {
+                            var keys;
 
-                        for (var i = 0; i < sel.options.length; i++) {
-                            if (sel.options[i].selected) {
-                                keys = sel.options[i].value.split('_');
-                                break;
+                            for (var i = 0; i < sel.options.length; i++) {
+                                if (sel.options[i].selected) {
+                                    keys = sel.options[i].value.split('_');
+                                    break;
+                                }
                             }
-                        }
-                        var datasetid = keys[0];
-                        var coordsid = keys[1];
-                        var clusterid = keys[2];
+                            var datasetid = keys[0];
+                            var coordsid = keys[1];
+                            var clusterid = keys[2];
 
-                        // Change the global data.
-                        originalReplayData[datasetid][coordsid][clusterid].comments[0] = textBox.value;
+                            // Change the global data.
+                            originalReplayData[datasetid][coordsid][clusterid].comments[0] = textBox.value;
+                        }
                     }
                 }
             });
