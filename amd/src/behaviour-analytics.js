@@ -2809,7 +2809,9 @@
 
             timeSlider.style.display = 'none';
             studentMenu.style.display = 'none';
-            groupMenu.style.display = 'none';
+            if (groupMenu) {
+                groupMenu.style.display = 'none';
+            }
 
             ddd.selectAll(".hull").remove();
             ddd.selectAll('.text').remove();
