@@ -790,6 +790,8 @@ function block_behaviour_get_lang_strings() {
         'dragoff'       => get_string('dragoff', 'block_behaviour'),
         'delbutton'     => get_string('delbutton', 'block_behaviour'),
         'delconfirm'    => get_string('delconfirm', 'block_behaviour'),
+        'clusteringname' => get_string('clusteringname', 'block_behaviour'),
+        'clusteringnamebutton' => get_string('clusteringnamebutton', 'block_behaviour'),
     );
 }
 
@@ -857,7 +859,8 @@ function block_behaviour_get_nav_links() {
         html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($delete, get_string('deldata',  'block_behaviour'));
+        html_writer::link($delete, get_string('deldata',  'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment']);
 
     return $links;
 }

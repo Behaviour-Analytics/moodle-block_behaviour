@@ -74,7 +74,8 @@
             realUserIds, // Map of anonymized id to real id.
             anonUserIds, // Map of real user ids to anonymous ids.
             langStrings, // An array of language dependent strings.
-            sessionKey; // The session key gets sent back to the server to avoid CSRF.
+            sessionKey, // The session key gets sent back to the server to avoid CSRF.
+            originalReplayData; // The replay data.
 
         // These variables are external packages used in the plugin.
         var ddd, // D3 package.
@@ -216,6 +217,7 @@
             serverCentroids = incoming.centroids;
             isResearcher = incoming.isresearcher;
             replayUserId = userId;
+            originalReplayData = incoming.replaydata;
 
             // Get external packages.
             ddd = window.dataDrivenDocs;
@@ -287,7 +289,7 @@
             width = window.innerWidth - clusterSliderPanelWidth - legendWidth - 150;
             height = window.innerHeight - sliderHeight - 90;
 
-            nodeRadius = Math.min(width, height) < 500 ? 6 : 8;
+            nodeRadius = Math.min(width, height) < 450 ? 6 : 8;
 
             // Create map for anonymized id to real id.
             realUserIds = {};
@@ -300,7 +302,7 @@
             getData();
 
             if (replaying) {
-                doClusterReplay(incoming.replaydata, incoming.manualdata);
+                doClusterReplay(incoming.manualdata);
             } else if (positioning) {
                 initPositioning();
             } else {
@@ -2771,6 +2773,9 @@
             var sm = document.getElementById('student-menu');
             sm.style.width = clusterButton.style.width;
 
+            // Remove clustering name text box and button.
+            document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
+
             // Start graphing.
             graphing = true;
             iframeStaticPos = false;
@@ -2839,6 +2844,9 @@
             clusterSliderValue = 1;
             clusterAnimInterval = undefined;
 
+            // Remove clustering name text box and button.
+            document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
+
             // Placeholder text for text box.
             var ph = '<p id="cluster-text">' + langStrings.numclusters + '</p>';
 
@@ -2877,10 +2885,9 @@
         /**
          * Called to do the clustering replay stage.
          *
-         * @param {array} data - The replay data from the server.
          * @param {array} manData - The manual replay data from the server.
          */
-        function doClusterReplay(data, manData) {
+        function doClusterReplay(manData) {
 
             positioning = true;
             presetNodes = {'0': 0, '1': 1, '2': 2};
@@ -2888,16 +2895,15 @@
 
             makeReplayControls();
             makeLogPanel();
-            makeReplayMenu(data, manData);
+            makeReplayMenu(manData);
         }
 
         /**
          * Called to make the clustering run menu for the replay stage.
          *
-         * @param {array} data - The replay data from the server.
          * @param {array} manData - The manual clustering data.
          */
-        function makeReplayMenu(data, manData) {
+        function makeReplayMenu(manData) {
 
             var sm = document.getElementById('student-menu');
 
@@ -2905,18 +2911,18 @@
             replayMenu.size = 3;
             replayMenu.id = 'replay-select';
             replayMenu.style = 'height: ' + (height - 12) + 'px;';
-            replayMenu.addEventListener('change', replayGraph.bind(this, data, manData));
+            replayMenu.addEventListener('change', replayGraph.bind(this, manData));
 
             // Add clustering runs to the menu.
-            for (var datasetid in data) {
+            for (var datasetid in originalReplayData) {
                 var i = 0;
-                for (var coordid in data[datasetid]) {
+                for (var coordid in originalReplayData[datasetid]) {
                     var j = 0;
                     i++;
-                    for (var clusterid in data[datasetid][coordid]) {
+                    for (var clusterid in originalReplayData[datasetid][coordid]) {
 
                         if (!isNaN(clusterid) &&
-                            data[datasetid][coordid][clusterid][1]) {
+                            originalReplayData[datasetid][coordid][clusterid][1]) {
 
                             var o = document.createElement('option');
                             o.value = datasetid + '_' + coordid + '_' + clusterid;
@@ -2932,12 +2938,11 @@
         /**
          * Called to display the initial graph for the replay stage.
          *
-         * @param {array} data - The replay data from the server.
          * @param {array} manData - The manual replay data from the server.
          */
-        function replayGraph(data, manData) {
+        function replayGraph(manData) {
 
-            var r = changeReplayData(data, manData);
+            var r = changeReplayData(manData);
             var members = r.members;
 
             // Remove graph and user menu, if exist, reset log panel.
@@ -2971,6 +2976,10 @@
             drawGraphNew(false);
             graphNodes.on('mouseover', null).on('mouseout', null);
             noCentroidMouse = true;
+
+            // Replace clustering name text box and button.
+            document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
+            addClusteringNameToNavigation();
 
             // Draw the user centroids.
             setTimeout(function() {
@@ -3590,11 +3599,10 @@
         /**
          * Called to change over/reset some global data for the next replay.
          *
-         * @param {array} data - The replay data from the server.
          * @param {array} manData - The manual clustering data from the server.
          * @return {object} - The new replay data.
          */
-        function changeReplayData(data, manData) {
+        function changeReplayData(manData) {
 
             // Figure out which dataset is selected.
             var sel = document.getElementById('replay-select');
@@ -3614,15 +3622,15 @@
             // Change the global data.
             replayUserId = datasetid.split('-')[0];
             coordsData.clusterId = clusterid;
-            lastChange = data[datasetid][coordsid].last;
-            presetNodes = data[datasetid][coordsid].nodes;
-            lordLinks = data[datasetid][coordsid].links;
-            coordsScale = data[datasetid][coordsid].scale;
-            modules = data[datasetid][coordsid].mods;
-            replayData = data[datasetid][coordsid][clusterid];
-            logs = data[datasetid][coordsid].logs;
-            users = data[datasetid][coordsid].users;
-            comments = data[datasetid][coordsid][clusterid].comments;
+            lastChange = originalReplayData[datasetid][coordsid].last;
+            presetNodes = originalReplayData[datasetid][coordsid].nodes;
+            lordLinks = originalReplayData[datasetid][coordsid].links;
+            coordsScale = originalReplayData[datasetid][coordsid].scale;
+            modules = originalReplayData[datasetid][coordsid].mods;
+            replayData = originalReplayData[datasetid][coordsid][clusterid];
+            logs = originalReplayData[datasetid][coordsid].logs;
+            users = originalReplayData[datasetid][coordsid].users;
+            comments = originalReplayData[datasetid][coordsid][clusterid].comments;
 
             // Create map for anonymized id to real id.
             anonUserIds = {};
@@ -3881,6 +3889,9 @@
             replayData = undefined;
             scaledCentroids = null;
             resetPlayButton();
+
+            // Remove clustering name text box and button.
+            document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
 
             // Unselect selected clustering run.
             var sel = document.getElementById('replay-select');
@@ -4207,6 +4218,9 @@
             coordsData.clusterId = Date.now();
             clusterSlider.removeAttribute('disabled');
 
+            // Remove clustering name text box and button.
+            document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
+
             // Reset cluster slider.
             if (clusterSliderValue == 3) {
                 clusterSlider.noUiSlider.set(2);
@@ -4299,6 +4313,67 @@
         }
 
         /**
+         * Called to add the clustering name and button to the navigation area.
+         */
+        function addClusteringNameToNavigation() {
+
+            var header = document.getElementById('clustering-replay-comment');
+
+            var textBox = document.createElement('input');
+            textBox.type = 'text';
+            textBox.id = 'clustering-replay-comment-text';
+
+            if (comments[0]) {
+                textBox.value = comments[0];
+            } else {
+                textBox.placeholder = langStrings.clusteringname;
+            }
+            header.appendChild(textBox);
+
+            var button = document.createElement('button');
+            button.innerHTML = langStrings.clusteringnamebutton;
+            header.appendChild(button);
+
+            button.addEventListener('click', function() {
+
+                // Only allow the owner of this data to change the name.
+                if (replayUserId == userId) {
+
+                    // Do not call server if the text area is empty or has not changed.
+                    if (textBox.value != '') {
+
+                        // The comment data for the server.
+                        var data = {
+                            'coordsid':  lastChange,
+                            'clusterid': coordsData.clusterId,
+                            'studentid': 0,
+                            'remark':    textBox.value
+                        };
+
+                        callServer(commentsScript, data);
+
+                        // Figure out which dataset is selected.
+                        var sel = document.getElementById('replay-select');
+                        var keys;
+
+                        for (var i = 0; i < sel.options.length; i++) {
+                            if (sel.options[i].selected) {
+                                keys = sel.options[i].value.split('_');
+                                break;
+                            }
+                        }
+                        var datasetid = keys[0];
+                        var coordsid = keys[1];
+                        var clusterid = keys[2];
+
+                        // Change the global data.
+                        originalReplayData[datasetid][coordsid][clusterid].comments[0] = textBox.value;
+                    }
+                }
+            });
+        }
+
+        /**
          * Function to run a clustering iteration.
          */
         function runClusteringIter() {
@@ -4307,6 +4382,7 @@
             if (clusterIters == 0) {
 
                 clustering = true;
+                addClusteringNameToNavigation();
 
                 // Get the number of clusters from the user.
                 var nm = document.getElementById('num-clusters');
@@ -5656,7 +5732,7 @@
             if (!version36) {
                 logPanel.style.position = 'absolute';
                 logPanel.style.right = '6px';
-                logPanel.style.top = '60px';
+                logPanel.style.top = '110px';
             }
 
             lp.appendChild(logPanel);
