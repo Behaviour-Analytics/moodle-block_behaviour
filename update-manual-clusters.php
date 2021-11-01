@@ -28,6 +28,7 @@
 
 require_once(__DIR__.'/../../config.php');
 require_once("$CFG->libdir/sessionlib.php");
+require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -43,7 +44,7 @@ $context = context_course::instance($courseid);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $courseid))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $courseid)));
     die();

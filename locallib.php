@@ -28,6 +28,42 @@ defined('MOODLE_INTERNAL') || die();
 require_once("$CFG->libdir/formslib.php");
 
 /**
+ * Called to get the courses that have this plugin installed.
+ *
+ * @return stdClass
+ */
+function block_behaviour_get_courses() {
+    global $DB;
+
+    // Get the courses for which the plugin is installed.
+    $sql = "SELECT c.id, c.shortname FROM {course} c
+              JOIN {context} ctx ON c.id = ctx.instanceid AND ctx.contextlevel = :contextcourse
+             WHERE ctx.id in (SELECT distinct parentcontextid FROM {block_instances}
+                               WHERE blockname = 'behaviour')
+          ORDER BY c.sortorder";
+    return $DB->get_records_sql($sql, array('contextcourse' => CONTEXT_COURSE));
+}
+
+/**
+ * Called to determine whether or not the block is installed in a course.
+ *
+ * @param int $courseid The course ID.
+ * @return boolean
+ */
+function block_behaviour_is_installed($courseid) {
+    global $DB;
+
+    $courses = block_behaviour_get_courses();
+
+    foreach ($courses as $c) {
+        if ($c->id === $courseid) {
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * Called to get the module information for a course.
  *
  * @param stdClass $course The DB course table record
@@ -792,6 +828,21 @@ function block_behaviour_get_lang_strings() {
         'delconfirm'    => get_string('delconfirm', 'block_behaviour'),
         'clusteringname' => get_string('clusteringname', 'block_behaviour'),
         'clusteringnamebutton' => get_string('clusteringnamebutton', 'block_behaviour'),
+        'system' => get_string('system', 'block_behaviour'),
+        'manual' => get_string('manual', 'block_behaviour'),
+        'diff' => get_string('diff', 'block_behaviour'),
+        'surveytitle' => get_string('surveytitle', 'block_behaviour'),
+        'questionstitle' => get_string('questionstitle', 'block_behaviour'),
+        'addquestion' => get_string('addquestion', 'block_behaviour'),
+        'surveytitleerr' => get_string('surveytitleerr', 'block_behaviour'),
+        'addqerr' => get_string('addqerr', 'block_behaviour'),
+        'addopterr' => get_string('addopterr', 'block_behaviour'),
+        'qtype' => get_string('qtype', 'block_behaviour'),
+        'qtext' => get_string('qtext', 'block_behaviour'),
+        'likertscale' => get_string('likertscale', 'block_behaviour'),
+        'delete' => get_string('delete', 'block_behaviour'),
+        'edit' => get_string('edit', 'block_behaviour'),
+        'predictionbox' => get_string('predictionbox', 'block_behaviour'),
     );
 }
 
@@ -800,16 +851,17 @@ function block_behaviour_get_lang_strings() {
  *
  * @param int $panelwidth The width of the left side panel.
  * @param int $legendwidth The width of the right side panel.
+ * @param int $shownames The config values to show names or not.
  * @return stdClass
  */
-function block_behaviour_get_html_table($panelwidth, $legendwidth) {
+function block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames) {
 
     // Build the table that holds the graph and UI components.
     $table = new html_table();
     $data = [];
 
     // Navigation links.
-    $cell0 = new html_table_cell(block_behaviour_get_nav_links());
+    $cell0 = new html_table_cell(block_behaviour_get_nav_links($shownames));
     $cell0->colspan = 3;
     $data[] = new html_table_row(array($cell0));
 
@@ -844,25 +896,958 @@ function block_behaviour_get_html_table($panelwidth, $legendwidth) {
 /**
  * Called to get the navigation links.
  *
+ * @param int $shownames The config values to show names or not.
  * @return string
  */
-function block_behaviour_get_nav_links() {
-    global $COURSE;
+function block_behaviour_get_nav_links($shownames) {
+    global $COURSE, $USER;
 
-    $view = new moodle_url('/blocks/behaviour/view.php?id=' . $COURSE->id);
-    $replay = new moodle_url('/blocks/behaviour/replay.php?id=' . $COURSE->id);
-    $position = new moodle_url('/blocks/behaviour/position.php?id=' . $COURSE->id);
-    $docs = new moodle_url('/blocks/behaviour/documentation.php?id=' . $COURSE->id);
-    $delete = new moodle_url('/blocks/behaviour/delete-data.php?id=' . $COURSE->id);
+    $params = array(
+        'id' => $COURSE->id,
+        'names' => $shownames,
+    );
+    $view = new moodle_url('/blocks/behaviour/view.php', $params);
+    $replay = new moodle_url('/blocks/behaviour/replay.php', $params);
+    $position = new moodle_url('/blocks/behaviour/position.php', $params);
+    $docs = new moodle_url('/blocks/behaviour/documentation.php', $params);
+    $delete = '';
+
+    // Only admins can delete data from the delete data page.
+    $context = context_course::instance($COURSE->id);
+    if (has_capability('block/behaviour:export', $context)) {
+        $delete = new moodle_url('/blocks/behaviour/delete-data.php', $params);
+        $delete = html_writer::link($delete, get_string('deldata',  'block_behaviour')) . '&nbsp&nbsp&nbsp';
+    }
 
     $links = html_writer::link($view, get_string('launchplugin', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($delete, get_string('deldata',  'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+        $delete .
         html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment']);
 
     return $links;
+}
+
+/**
+ * Called to get the data for the summary tables.
+ *
+ * @param stdClass $course The course object.
+ * @return array
+ */
+function block_behaviour_get_summary_data(&$course) {
+    global $DB;
+
+    $members = $DB->get_records('block_behaviour_members', array('courseid' => $course->id));
+    $manmembers = $DB->get_records('block_behaviour_man_members', array('courseid' => $course->id));
+
+    // Build membership data array.
+    $mdata = [];
+    foreach ($members as $m) {
+        if (!isset($mdata[$m->userid])) {
+            $mdata[$m->userid] = [];
+        }
+        if (!isset($mdata[$m->userid][$m->coordsid])) {
+            $mdata[$m->userid][$m->coordsid] = [];
+        }
+        if (!isset($mdata[$m->userid][$m->coordsid][$m->clusterid])) {
+            $mdata[$m->userid][$m->coordsid][$m->clusterid] = [];
+        }
+        if (!isset($mdata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration])) {
+            $mdata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration] = [];
+        }
+        if (!isset($mdata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum])) {
+            $mdata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum] = [];
+        }
+
+        $mdata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum][] = $m->studentid;
+    }
+    unset($m);
+
+    // Build manual membership data array.
+    $mandata = [];
+    foreach ($manmembers as $m) {
+        if (!isset($mandata[$m->userid])) {
+            $mandata[$m->userid] = [];
+        }
+        if (!isset($mandata[$m->userid][$m->coordsid])) {
+            $mandata[$m->userid][$m->coordsid] = [];
+        }
+        if (!isset($mandata[$m->userid][$m->coordsid][$m->clusterid])) {
+            $mandata[$m->userid][$m->coordsid][$m->clusterid] = [];
+        }
+        if (!isset($mandata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration])) {
+            $mandata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration] = [];
+        }
+        if (!isset($mandata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum])) {
+            $mandata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum] = [];
+        }
+
+        $mandata[$m->userid][$m->coordsid][$m->clusterid][$m->iteration][$m->clusternum][] = $m->studentid;
+    }
+    unset($m);
+
+    return [ $mdata, $mandata ];
+}
+
+/**
+ * Called to get the summary table heading string ids.
+ *
+ * @return array
+ */
+function block_behaviour_get_summary_headings() {
+
+    return array(
+        'userid',
+        'graphid',
+        'analysisname',
+        'lordgraph',
+        'iteration',
+        'cluster',
+        'system',
+        'manual',
+        'precision',
+        'recall',
+        'fhalf',
+        'f1',
+        'f2'
+    );
+}
+
+/**
+ * Determine is this graph is a Behaviour Analytics graph,
+ * LORD graph, or manipulated LORD graph.
+ *
+ * @param int $cid Course id.
+ * @param int $coordsid Graph id.
+ * @return string
+ */
+function block_behaviour_get_lord_graph_status($cid, $coordsid) {
+    global $DB;
+
+    $params = array(
+        'courseid' => $cid,
+        'coordsid' => $coordsid,
+    );
+    $record = $DB->get_record('block_lord_scales', $params);
+
+    $islord = '';
+    if ($record) {
+        $islord = $record->iscustom ? get_string('custom', 'block_behaviour') :
+            get_string('system', 'block_behaviour');
+    }
+
+    return $islord;
+}
+
+/**
+ * Called to get the main graph summary table.
+ *
+ * @param stdClass $course The course object.
+ * @param array $mdata The membership data.
+ * @param array $mandata The manual membership data.
+ * @param array $selected Array of graph ids selected from list.
+ * @param int $shownames The config setting to show names or not.
+ * @return array
+ */
+function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selected, $shownames) {
+    global $DB;
+
+    // Begin table with header row.
+    $table = new html_table();
+    $table->caption = get_string('graphsummary', 'block_behaviour');
+    $data = [];
+    $row = [];
+    $headrow = [];
+    $membermap = [];
+    $namemap = [];
+
+    $headings = block_behaviour_get_summary_headings();
+    foreach ($headings as $h) {
+        $headrow[] = new html_table_cell(html_writer::div(get_string($h, 'block_behaviour')));
+    }
+
+    // Start CSV file for later download.
+    $csv = '';
+    $headcsv = '';
+    foreach ($headings as $h) {
+        $headcsv .= '"' . get_string($h, 'block_behaviour') . '",';
+    }
+    $headcsv = substr_replace($headcsv, PHP_EOL, -1);
+
+    // Build the summary table.
+    foreach ($mdata as $k1 => $v1) { // Userid.
+        foreach ($v1 as $k2 => $v2) { // Coordsid.
+
+            if (count($selected) > 0 && !in_array($k2, $selected)) {
+                continue;
+            }
+
+            $membermap[$k2] = [];
+            $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
+
+            foreach ($v2 as $k3 => $v3) { // Clusterid.
+
+                // Find minimum iteration.
+                $min = 1;
+                foreach ($v3 as $k4 => $v4) { // Iteration.
+                    if ($k4 < $min) {
+                        $min = $k4;
+                    }
+                }
+                if ($min === 1) { // Then did not converge, no summary to see.
+                    continue;
+                }
+                unset($k4);
+                unset($v4);
+
+                $data[] = $headrow;
+                $csv .= $headcsv;
+
+                // Get the name of this analysis.
+                $params['userid'] = $k1;
+                $params['studentid'] = 0;
+                $params['clusterid'] = $k3;
+
+                $records = $DB->get_records('block_behaviour_comments', $params, 'commentid desc');
+                $clusteringname = $records ? $records[key($records)]->remark : get_string('noname', 'block_behaviour');
+                $membermap[$k2][$k3] = [];
+
+                // Totals for precision and recall.
+                $totaltp = 0;
+                $totalfp = 0;
+                $totalfn = 0;
+
+                // Get the membership for this cluster.
+                $firstrow = true;
+                foreach ($v3[$min] as $k4 => $v4) { // Cluster number.
+
+                    $students = '';
+                    $manstudents = '';
+                    $studentids = [];
+
+                    $p = 1.0;
+                    $r = 1.0;
+                    $fhalf = 1.0;
+                    $fone = 1.0;
+                    $ftwo = 1.0;
+
+                    foreach ($v4 as $k5 => $v5) { // Membership.
+                        $studentids[] = $v5;
+                        block_behaviour_add_student_name($namemap, $v5, $shownames);
+                        $students .= $namemap[$v5] . ', ';
+                    }
+                    $students = substr_replace($students, '', -2);
+
+                    // This analysis has manual clustering data for this cluster,
+                    // so calculate precision and recall.
+                    if (isset($mandata[$k1]) && isset($mandata[$k1][$k2]) &&
+                        isset($mandata[$k1][$k2][$k3]) && isset($mandata[$k1][$k2][$k3][$min]) &&
+                        isset($mandata[$k1][$k2][$k3][$min][$k4])) {
+
+                        $truepositives = 0;
+                        $falsepositives = 0;
+                        $falsenegatives = 0;
+
+                        foreach ($studentids as $sid) {
+                            if (in_array($sid, $mandata[$k1][$k2][$k3][$min][$k4])) {
+                                $truepositives += 1;
+                            } else {
+                                $falsepositives += 1;
+                            }
+                        }
+                        unset($sid);
+
+                        foreach ($mandata[$k1][$k2][$k3][$min][$k4] as $sid) {
+                            block_behaviour_add_student_name($namemap, $sid, $shownames);
+                            $manstudents .= $namemap[$sid] . ', ';
+                            if (!in_array($sid, $studentids)) {
+                                $falsenegatives += 1;
+                            }
+                        }
+                        $manstudents = substr_replace($manstudents, '', -2);
+
+                        $totaltp += $truepositives;
+                        $totalfp += $falsepositives;
+                        $totalfn += $falsenegatives;
+
+                        $p = $truepositives / ($truepositives + $falsepositives);
+                        $r = $truepositives / ($truepositives + $falsenegatives);
+
+                        $fhalf = $p + $r == 0 ? 0 : (1.25 * $p * $r) / ((0.25 * $p) + $r);
+                        $fone = $p + $r == 0 ? 0 : (2.0 * $p * $r) / ($p + $r);
+                        $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
+                    }
+
+                    $membermap[$k2][$k3][$k4] = [ $students, $manstudents ];
+
+                    // Add the data to the summary table.
+                    $row = [];
+                    if ($firstrow) {
+                        $row[] = new html_table_cell(html_writer::div($k1, ''));
+                        $row[] = new html_table_cell(html_writer::div($k2, ''));
+                        $row[] = new html_table_cell(html_writer::div($clusteringname, ''));
+                        $row[] = new html_table_cell(html_writer::div($islord, ''));
+                        $row[] = new html_table_cell(html_writer::div($min, ''));
+
+                        $csv .= $k1 . ',' . $k2 . ',' . $clusteringname . ',' . $islord . ',' . $min . ',';
+
+                    } else {
+                        for ($i = 0; $i < 5; $i++) {
+                            $row[] = new html_table_cell(html_writer::div('', ''));
+                            $csv .= ',';
+                        }
+                    }
+                    $row[] = new html_table_cell(html_writer::div($k4, ''));
+                    $row[] = new html_table_cell(html_writer::div($students, ''));
+                    $row[] = new html_table_cell(html_writer::div($manstudents, ''));
+                    $row[] = new html_table_cell(html_writer::div(round($p, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($r, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($fhalf, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($fone, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($ftwo, 3), ''));
+
+                    $csv .= $k4 . ',"' . $students . '","' . $manstudents . '",' . round($p, 3) . ',' .
+                        round($r, 3) . ',' . round($fhalf, 3) . ',' . round($fone, 3) . ',' .
+                        round($ftwo, 3) . PHP_EOL;
+
+                    $firstrow = false;
+                    $data[] = $row;
+                }
+
+                // End of this analysis, calculate the total precision and recall.
+                $p = $totaltp + $totalfp == 0 ? 1.0 : $totaltp / ($totaltp + $totalfp);
+                $r = $totaltp + $totalfn == 0 ? 1.0 : $totaltp / ($totaltp + $totalfn);
+
+                $fhalf = $p + $r == 0 ? 0 : (1.25 * $p * $r) / ((0.25 * $p) + $r);
+                $fone = $p + $r == 0 ? 0 : (2.0 * $p * $r) / ($p + $r);
+                $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
+
+                // Add total measures to summary table.
+                $row = [];
+                for ($i = 0; $i < 3; $i++) {
+                    $row[] = new html_table_cell(html_writer::div('', ''));
+                    $csv .= ',';
+                }
+                $row[] = new html_table_cell(html_writer::div(get_string('total', 'block_behaviour'), ''));
+                $cell = new html_table_cell(html_writer::div('', '', ['id' => 'pie' . $k3]));
+                $cell->colspan = 4;
+                $row[] = $cell;
+                $row[] = new html_table_cell(html_writer::div(round($p, 3), ''));
+                $row[] = new html_table_cell(html_writer::div(round($r, 3), ''));
+                $row[] = new html_table_cell(html_writer::div(round($fhalf, 3), ''));
+                $row[] = new html_table_cell(html_writer::div(round($fone, 3), ''));
+                $row[] = new html_table_cell(html_writer::div(round($ftwo, 3), ''));
+
+                $csv .= '"' . get_string('total', 'block_behaviour') . '",,,,,' . round($p, 3) . ',' . round($r, 3) . ',' .
+                    round($fhalf, 3) . ',' . round($fone, 3) . ',' . round($ftwo, 3) . PHP_EOL;
+
+                $data[] = $row;
+                $clusteringname = '';
+            }
+        }
+    }
+
+    $table->data = $data;
+    return [ $table, $csv, $membermap, $namemap ];
+}
+
+/**
+ * Called to get the iteration summary table.
+ *
+ * @param stdClass $course The course object.
+ * @param array $mdata The membership data.
+ * @param array $mandata The manual membership data.
+ * @param int $shownames The config setting to show names or not.
+ * @return array
+ */
+function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $shownames) {
+    global $DB;
+
+    // Begin table with header row.
+    $table = new html_table();
+    $table->caption = get_string('itersummary', 'block_behaviour');
+    $data = [];
+    $row = [];
+    $headrow = [];
+    $membermap = [];
+    $namemap = [];
+
+    $headings = block_behaviour_get_summary_headings();
+    foreach ($headings as $h) {
+        $headrow[] = new html_table_cell(html_writer::div(get_string($h, 'block_behaviour'), ''));
+    }
+
+    // Start CSV file for later download.
+    $csv = '';
+    $headcsv = '';
+    foreach ($headings as $h) {
+        $headcsv .= '"' . get_string($h, 'block_behaviour') . '",';
+    }
+    $headcsv = substr_replace($headcsv, PHP_EOL, -1);
+
+    // Build the summary table.
+    foreach ($mdata as $k1 => $v1) { // Userid.
+        foreach ($v1 as $k2 => $v2) { // Coordsid.
+
+            $membermap[$k2] = [];
+            $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
+
+            foreach ($v2 as $k3 => $v3) { // Clusterid.
+
+                $data[] = $headrow;
+                $csv .= $headcsv;
+
+                // Get the name of this analysis.
+                $params['userid'] = $k1;
+                $params['studentid'] = 0;
+                $params['clusterid'] = $k3;
+
+                $records = $DB->get_records('block_behaviour_comments', $params, 'commentid desc');
+                $clusteringname = $records ? $records[key($records)]->remark : get_string('noname', 'block_behaviour');
+                $membermap[$k2][$k3] = [];
+
+                // Totals for precision and recall.
+                $totaltp = 0;
+                $totalfp = 0;
+                $totalfn = 0;
+
+                // Get the membership for this cluster.
+                foreach ($v3 as $k4 => $v4) { // Iteration.
+                    $firstrow = true;
+                    $membermap[$k2][$k3][$k4] = [];
+
+                    foreach ($v4 as $k5 => $v5) { // Cluster number.
+
+                        $students = '';
+                        $manstudents = '';
+                        $studentids = [];
+
+                        $p = 1.0;
+                        $r = 1.0;
+                        $fhalf = 1.0;
+                        $fone = 1.0;
+                        $ftwo = 1.0;
+
+                        foreach ($v5 as $k6 => $v6) { // Membership.
+                            $studentids[] = $v6;
+                            block_behaviour_add_student_name($namemap, $v6, $shownames);
+                            $students .= $namemap[$v6] . ', ';
+                        }
+                        $students = substr_replace($students, '', -2);
+
+                        // This analysis has manual clustering data for this cluster,
+                        // so calculate precision and recall.
+                        if (isset($mandata[$k1]) && isset($mandata[$k1][$k2]) &&
+                            isset($mandata[$k1][$k2][$k3]) && isset($mandata[$k1][$k2][$k3][$k4]) &&
+                            isset($mandata[$k1][$k2][$k3][$k4][$k5])) {
+
+                            $truepositives = 0;
+                            $falsepositives = 0;
+                            $falsenegatives = 0;
+
+                            foreach ($studentids as $sid) {
+                                if (in_array($sid, $mandata[$k1][$k2][$k3][$k4][$k5])) {
+                                    $truepositives += 1;
+                                } else {
+                                    $falsepositives += 1;
+                                }
+                            }
+                            unset($sid);
+
+                            foreach ($mandata[$k1][$k2][$k3][$k4][$k5] as $sid) {
+                                block_behaviour_add_student_name($namemap, $sid, $shownames);
+                                $manstudents .= $namemap[$sid] . ', ';
+                                if (!in_array($sid, $studentids)) {
+                                    $falsenegatives += 1;
+                                }
+                            }
+                            $manstudents = substr_replace($manstudents, '', -2);
+                            unset($sid);
+
+                            $totaltp += $truepositives;
+                            $totalfp += $falsepositives;
+                            $totalfn += $falsenegatives;
+
+                            $p = $truepositives / ($truepositives + $falsepositives);
+                            $r = $truepositives / ($truepositives + $falsenegatives);
+
+                            $fhalf = $p + $r == 0 ? 0 : (1.25 * $p * $r) / ((0.25 * $p) + $r);
+                            $fone = $p + $r == 0 ? 0 : (2.0 * $p * $r) / ($p + $r);
+                            $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
+                        }
+
+                        $membermap[$k2][$k3][$k4][$k5] = [ $students, $manstudents ];
+
+                        // Add the data to the summary table.
+                        $row = [];
+                        if ($firstrow) {
+                            $row[] = new html_table_cell(html_writer::div($k1, ''));
+                            $row[] = new html_table_cell(html_writer::div($k2, ''));
+                            $row[] = new html_table_cell(html_writer::div($clusteringname, ''));
+                            $row[] = new html_table_cell(html_writer::div($islord, ''));
+                            $row[] = new html_table_cell(html_writer::div($k4, ''));
+
+                            $csv .= $k1 . ',' . $k2 . ',"' . $clusteringname . '","' . $islord . '",' . $k4 . ',';
+
+                        } else {
+                            for ($i = 0; $i < 5; $i++) {
+                                $row[] = new html_table_cell(html_writer::div('', ''));
+                                $csv .= ',';
+                            }
+                        }
+                        $row[] = new html_table_cell(html_writer::div($k5, ''));
+                        $row[] = new html_table_cell(html_writer::div($students, ''));
+                        $row[] = new html_table_cell(html_writer::div($manstudents, ''));
+                        $row[] = new html_table_cell(html_writer::div(round($p, 3), ''));
+                        $row[] = new html_table_cell(html_writer::div(round($r, 3), ''));
+                        $row[] = new html_table_cell(html_writer::div(round($fhalf, 3), ''));
+                        $row[] = new html_table_cell(html_writer::div(round($fone, 3), ''));
+                        $row[] = new html_table_cell(html_writer::div(round($ftwo, 3), ''));
+
+                        $csv .= $k5 . ',"' . $students . '","' . $manstudents . '",' . round($p, 3) . ',' . round($r, 3) .
+                            ',' . round($fhalf, 3) . ',' . round($fone, 3) . ',' . round($ftwo, 3) . PHP_EOL;
+
+                        $firstrow = false;
+                        $data[] = $row;
+                    }
+
+                    // End of this analysis, calculate the total precision and recall.
+                    $p = $totaltp + $totalfp == 0 ? 1.0 : $totaltp / ($totaltp + $totalfp);
+                    $r = $totaltp + $totalfn == 0 ? 1.0 : $totaltp / ($totaltp + $totalfn);
+
+                    $fhalf = $p + $r == 0 ? 0 : (1.25 * $p * $r) / ((0.25 * $p) + $r);
+                    $fone = $p + $r == 0 ? 0 : (2.0 * $p * $r) / ($p + $r);
+                    $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
+
+                    // Add total measures to summary table.
+                    $row = [];
+                    for ($i = 0; $i < 3; $i++) {
+                        $row[] = new html_table_cell(html_writer::div('', ''));
+                        $csv .= ',';
+                    }
+                    $row[] = new html_table_cell(html_writer::div(get_string('total', 'block_behaviour'), ''));
+                    $cell = new html_table_cell(html_writer::div('', '', ['id' => 'pie' . $k3 . '-' . $k4]));
+                    $cell->colspan = 4;
+                    $row[] = $cell;
+                    $row[] = new html_table_cell(html_writer::div(round($p, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($r, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($fhalf, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($fone, 3), ''));
+                    $row[] = new html_table_cell(html_writer::div(round($ftwo, 3), ''));
+
+                    $csv .= '"' . get_string('total', 'block_behaviour') . '",,,,,' . round($p, 3) . ',' . round($r, 3) .
+                        ',' . round($fhalf, 3) . ',' . round($fone, 3) . ',' . round($ftwo, 3) . PHP_EOL;
+
+                    $data[] = $row;
+                }
+            }
+        }
+    }
+
+    $table->data = $data;
+    return [ $table, $csv, $membermap, $namemap ];
+}
+
+/**
+ * Called to add the name of a student from their id.
+ *
+ * @param array $namemap Map of ids to names.
+ * @param int $sid The student id value.
+ * @param int $shownames The config setting to show names or not.
+ */
+function block_behaviour_add_student_name(&$namemap, $sid, $shownames) {
+    global $DB;
+
+    if (!isset($namemap[$sid])) {
+
+        if ($shownames) {
+            $sql = "SELECT id, username, firstname, lastname
+                      FROM {user}
+                     WHERE id = ?";
+            $username = $DB->get_record_sql($sql, [$sid]);
+            $namemap[$sid] = $username->firstname . ' ' . $username->lastname;
+        } else {
+            $namemap[$sid] = count($namemap) + 1;
+        }
+    }
+}
+
+/**
+ * Called to get the survey management data.
+ *
+ * @param stdClass $course The course object.
+ * @param int $shownames The config value to show names or not.
+ */
+function block_behaviour_get_surveys(&$course, $shownames) {
+    global $DB;
+
+    $table = new html_table();
+    $table->head = [
+        get_string('titleofsurvey', 'block_behaviour'),
+        get_string('qsinsurvey', 'block_behaviour'),
+        get_string('url', 'block_behaviour'),
+        '',
+        '',
+        '',
+    ];
+    $data = [];
+    $row = [];
+
+    $surveys = $DB->get_records('block_behaviour_surveys');
+    foreach ($surveys as $s) {
+
+        $row[] = new html_table_cell(html_writer::div($s->title), '');
+
+        $questions = $DB->get_records('block_behaviour_survey_qs', ['survey' => $s->id]);
+        $row[] = new html_table_cell(html_writer::div(count($questions), ''));
+
+        $url = (string) new moodle_url('/blocks/behaviour/student-survey.php', ['sid' => $s->id]);
+        $row[] = new html_table_cell(html_writer::div($url, ''));
+
+        $params = array(
+            'id' => $course->id,
+            'names' => $shownames,
+            'type' => 6,
+            'surveyid' => $s->id,
+        );
+        $a = html_writer::tag('a', get_string('viewsurvey', 'block_behaviour'), array(
+            'href' => new moodle_url('#', $params)
+        ));
+        $row[] = new html_table_cell(html_writer::div($a, ''));
+
+        $params['deletesurvey'] = true;
+        $params['type'] = 4;
+        $a = html_writer::tag('a', get_string('edit', 'block_behaviour'), array(
+            'href' => new moodle_url('#', $params)
+        ));
+        $row[] = new html_table_cell(html_writer::div($a, ''));
+
+        $params['deletesurvey'] = true;
+        $params['type'] = 3;
+        $a = html_writer::tag('a', get_string('delete', 'block_behaviour'), array(
+            'href' => new moodle_url('#', $params)
+        ));
+        $row[] = new html_table_cell(html_writer::div($a, ''));
+        $data[] = $row;
+        $row = [];
+    }
+    $data[] = $row;
+
+    $table->data = $data;
+    return [ $table ];
+}
+
+/**
+ * Called to delete a particluar survey.
+ *
+ * @param int $surveyid The survey ID.
+ */
+function block_behaviour_delete_survey($surveyid) {
+    global $DB;
+
+    $DB->delete_records('block_behaviour_surveys', ['id' => $surveyid]);
+    $questions = $DB->get_records('block_behaviour_survey_qs', ['survey' => $surveyid]);
+    $qids = [];
+
+    foreach ($questions as $q) {
+        $DB->delete_records('block_behaviour_survey_opts', ['question' => $q->id]);
+    }
+    $DB->delete_records('block_behaviour_survey_qs', ['survey' => $surveyid]);
+}
+
+/**
+ * Called to edit a particluar survey.
+ *
+ * @param int $surveyid The survey ID.
+ * @return array
+ */
+function block_behaviour_manage_survey($surveyid) {
+    global $DB;
+
+    $survey = $DB->get_record('block_behaviour_surveys', ['id' => $surveyid]);
+    $questions = $DB->get_records('block_behaviour_survey_qs', ['survey' => $surveyid], 'ordering');
+    $qids = [];
+    $qoptions = [];
+
+    foreach ($questions as $q) {
+        $qids[] = $q->id;
+        $qoptions[$q->id] = [];
+    }
+    unset($q);
+
+    if (count($qids) > 0) {
+        list($insql, $inparams) = $DB->get_in_or_equal($qids, SQL_PARAMS_NAMED);
+        $sql = "SELECT * FROM {block_behaviour_survey_opts} WHERE question $insql ORDER BY question, ordering";
+        $qopts = $DB->get_records_sql($sql, $inparams);
+
+        foreach ($qopts as $qopt) {
+            $qoptions[$qopt->question][$qopt->ordering] = $qopt->text;
+        }
+        unset($qopt);
+    }
+
+    list($table) = block_behaviour_make_new_survey();
+    $table->caption = get_string('editsurvey', 'block_behaviour');
+    return [ $table, $survey, $questions, $qoptions ];
+}
+
+/**
+ * Called to create a new survey.
+ *
+ * @return array
+ */
+function block_behaviour_make_new_survey() {
+    global $DB;
+
+    $table = new html_table();
+    $table->caption = get_string('newsurvey', 'block_behaviour');
+    $data = [];
+    $row = [ new html_table_cell(html_writer::div('', '', ['id' => 'new-survey'])) ];
+    $data[] = $row;
+    $row = [ new html_table_cell(html_writer::div('', '', ['id' => 'questions-title'])) ];
+    $data[] = $row;
+    $row = [ new html_table_cell(html_writer::div('', '', ['id' => 'survey-questions'])) ];
+    $data[] = $row;
+
+    $table->data = $data;
+    return [ $table ];
+}
+
+/**
+ * Called to get the survey responses.
+ *
+ * @param stdClass $course The course object.
+ * @param int $surveyid The survey ID.
+ * @param int $shownames The config value to show names or not.
+ * @return array
+ */
+function block_behaviour_get_survey_responses($course, $surveyid, $shownames) {
+    global $DB;
+
+    // Get the survey responses.
+    $params = [
+        'courseid' => $course->id,
+        'surveyid' => $surveyid,
+    ];
+    $records = $DB->get_records('block_behaviour_survey_rsps', $params, 'studentid, attempt, qorder');
+
+    $table = new html_table();
+    $table->caption = get_string('viewsurvey', 'block_behaviour');
+    $table->head = [
+        get_string('student', 'block_behaviour'),
+        get_string('question', 'block_behaviour'),
+        get_string('response', 'block_behaviour'),
+    ];
+    $csv = get_string('student', 'block_behaviour') . ',' .
+        get_string('question', 'block_behaviour') . ',' . get_string('response', 'block_behaviour') . PHP_EOL;
+
+    $data = [];
+    $row = [];
+    $seqid = 1;
+    $currentstudent = 0;
+    $currentattempt = 0;
+    $questiontext = '';
+    $questionmap = [];
+    $optionsmap = [];
+    $optiontext = '';
+    $likertscale = explode(',', get_string('likertscale', 'block_behaviour'));
+
+    // Build the table and csv for download.
+    foreach ($records as $r) {
+        // Student name or sequential id, depending on settings.
+        if ($r->studentid != $currentstudent) {
+            $currentstudent = $r->studentid;
+            $name = $seqid++;
+
+            if ($shownames) {
+                $username = $DB->get_record('user', ['id' => $r->studentid], 'id, firstname, lastname');
+                $name = $username->firstname . ' ' . $username->lastname;
+            }
+
+            $row[] = new html_table_cell(html_writer::div($name, ''));
+            $csv .= $name . ',';
+            $currentattempt = 0;
+
+        } else {
+            $row[] = new html_table_cell(html_writer::div('', ''));
+            $csv .= ',';
+        }
+
+        // Question ID and text.
+        if (!isset($questionmap[$r->questionid])) {
+            $qrec = $DB->get_record('block_behaviour_survey_qs', ['id' => $r->questionid]);
+            $questionmap[$r->questionid] = $qrec->qtext;
+            $optionsmap[$r->questionid] = [];
+        }
+        $questiontext = $questionmap[$r->questionid];
+        $row[] = new html_table_cell(html_writer::div($r->qorder . ' ' . $questiontext, ''));
+        $csv .= $r->qorder . ' ' . $questiontext . ',';
+
+        // Student response to the question.
+        if (!isset($optionsmap[$r->questionid][$r->response])) {
+            if ($qrec->qtype == 'likert') {
+                $optionsmap[$r->questionid][$r->response] = $likertscale[$r->response];
+            } else {
+                $params = ['question' => $r->questionid, 'ordering' => $r->response];
+                $optionsmap[$r->questionid][$r->response] = $DB->get_field('block_behaviour_survey_opts', 'text', $params);
+            }
+        }
+        $optiontext = $optionsmap[$r->questionid][$r->response];
+        $row[] = new html_table_cell(html_writer::div($r->response . ' ' .$optiontext, ''));
+        $csv .= $r->response . ' ' . $optiontext . PHP_EOL;
+        $data[] = $row;
+        $row = [];
+    }
+
+    $table->data = $data;
+    return [ $table, $csv ];
+}
+
+/**
+ * Class definition for survey form.
+ *
+ * This class handles the survey form.
+ *
+ * @package block_behaviour
+ * @author Ted Krahn
+ * @copyright 2021 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_student_survey_form extends moodleform {
+
+    /** @var stdClass The survey. */
+    private $survey;
+
+    /** @var stdClass The survey questions. */
+    private $questions;
+
+    /** @var stdClass The questions options. */
+    private $qoptions;
+
+    /**
+     * Constructor function.
+     *
+     * @param stdClass $survey The survey.
+     * @param stdClass $questions The survey questions.
+     * @param stdClass $qoptions The question options.
+     */
+    public function __construct(&$survey, &$questions, &$qoptions) {
+        $this->survey = $survey;
+        $this->questions = $questions;
+        $this->qoptions = $qoptions;
+        parent::__construct();
+    }
+
+    /**
+     * Definition function.
+     */
+    public function definition() {
+        global $DB;
+
+        $mform = $this->_form; // Don't forget the underscore!
+
+        // Course id.
+        $mform->addElement('hidden', 'id');
+        $mform->setType('id', PARAM_INT);
+        // Survey id.
+        $mform->addElement('hidden', 'sid');
+        $mform->setType('sid', PARAM_INT);
+
+        if (!$this->survey) {
+            return;
+        }
+
+        $mform->addElement('html', html_writer::tag('h2', $this->survey->title));
+
+        if ($this->survey->title == get_string('bfi1title', 'block_behaviour')) {
+            $mform->addElement('html', html_writer::tag('h4', get_string('bfi1heading', 'block_behaviour')));
+        }
+
+        $likert = get_string('likertscale', 'block_behaviour');
+        $likert = explode(',', $likert);
+
+        foreach ($this->questions as $q) {
+            $mform->addElement('static', 'qtext-' . $q->id, $q->ordering . '  ' . $q->qtext);
+            $radios = [];
+            $labels = $q->qtype === 'likert' ? $likert : $this->qoptions[$q->id];
+            foreach ($labels as $k => $v) {
+                $radios[] = $mform->createElement('radio', 'qoption-' . $q->id, '', $v, $k,
+                ['id' => 'qoption-' . $q->id . '-' . $k]);
+            }
+            $mform->addGroup($radios, 'options-' . $q->id);
+        }
+
+        $this->add_action_buttons();
+    }
+}
+
+/**
+ * Class definition for summary form.
+ *
+ * This class handles the summary form to select various graph ids for display.
+ *
+ * @package block_behaviour
+ * @author Ted Krahn
+ * @copyright 2021 Athabasca University
+ * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+class block_behaviour_summary_form extends moodleform {
+
+    /** @var array Membership data. */
+    private $data;
+
+    /** @var int Course id. */
+    private $cid;
+
+    /**
+     * Constructor function.
+     *
+     * @param array $mdata The membership data.
+     * @param array $cid The course id.
+     */
+    public function __construct(&$mdata, $cid) {
+        $this->data = $mdata;
+        $this->cid = $cid;
+        parent::__construct();
+    }
+
+    /**
+     * Definition function.
+     */
+    public function definition() {
+
+        $mform = $this->_form; // Don't forget the underscore!
+
+        // Course id.
+        $mform->addElement('hidden', 'id');
+        $mform->setType('id', PARAM_INT);
+        // Display type.
+        $mform->addElement('hidden', 'type');
+        $mform->setType('type', PARAM_INT);
+        // Display type.
+        $mform->addElement('hidden', 'names');
+        $mform->setType('names', PARAM_INT);
+
+        $str = get_string('userid', 'block_behaviour') . ' _ ' . get_string('graphid', 'block_behaviour') .
+            ' _ ' . get_string('lordgraph', 'block_behaviour');
+        $mform->addElement('html', '<p style="text-align: center">' . $str . '</p>');
+
+        foreach ($this->data as $k1 => $v1) { // Userid.
+            foreach ($v1 as $k2 => $v2) { // Coordsid.
+                foreach ($v2 as $k3 => $v3) { // Clusterid.
+
+                    // If no convergence, then no summary to show.
+                    if (isset($this->data[$k1][$k2][$k3][-1])) {
+                        $islord = block_behaviour_get_lord_graph_status($this->cid, $k2);
+                        $mform->addElement('advcheckbox', 'chk' . $k2, $k1 . ' _ ' . $k2 . ' _ ' . $islord);
+                        break;
+                    }
+                }
+            }
+        }
+        $this->add_action_buttons(false, get_string('select', 'block_behaviour'));
+    }
 }
 
 /**

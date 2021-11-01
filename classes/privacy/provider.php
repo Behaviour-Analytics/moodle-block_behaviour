@@ -216,6 +216,64 @@ class provider implements
             'privacy:metadata:block_behaviour_lord_options'
         );
 
+        $collection->add_database_table(
+            'block_behaviour_surveys',
+            [
+                'title'  => 'privacy:metadata:block_behaviour:title',
+            ],
+            'privacy:metadata:block_behaviour_surveys'
+        );
+
+        $collection->add_database_table(
+            'block_behaviour_surveys_qs',
+            [
+                'survey'  => 'privacy:metadata:block_behaviour:survey',
+                'qtype'  => 'privacy:metadata:block_behaviour:qtype',
+                'qtext'  => 'privacy:metadata:block_behaviour:qtext',
+                'ordering'  => 'privacy:metadata:block_behaviour:ordering',
+            ],
+            'privacy:metadata:block_behaviour_survey_qs'
+        );
+
+        $collection->add_database_table(
+            'block_behaviour_surveys_opts',
+            [
+                'question'  => 'privacy:metadata:block_behaviour:question',
+                'ordering'  => 'privacy:metadata:block_behaviour:ordering',
+                'text'  => 'privacy:metadata:block_behaviour:text',
+            ],
+            'privacy:metadata:block_behaviour_survey_opts'
+        );
+
+        $collection->add_database_table(
+            'block_behaviour_surveys_rsps',
+            [
+                'courseid'  => 'privacy:metadata:block_behaviour:courseid',
+                'studentid'  => 'privacy:metadata:block_behaviour:studentid',
+                'surveyid'  => 'privacy:metadata:block_behaviour:survey',
+                'attempt'  => 'privacy:metadata:block_behaviour:attempt',
+                'questionid'  => 'privacy:metadata:block_behaviour:question',
+                'qorder'  => 'privacy:metadata:block_behaviour:ordering',
+                'response'  => 'privacy:metadata:block_behaviour:response',
+            ],
+            'privacy:metadata:block_behaviour_survey_rsps'
+        );
+
+        $collection->add_database_table(
+            'block_behaviour_common_links',
+            [
+                'courseid'  => 'privacy:metadata:block_behaviour:courseid',
+                'userid'  => 'privacy:metadata:block_behaviour:userid',
+                'coordsid'  => 'privacy:metadata:block_behaviour:coordsid',
+                'cluster'  => 'privacy:metadata:block_behaviour:clusterid',
+                'iteration'  => 'privacy:metadata:block_behaviour:iteration',
+                'clusternum'  => 'privacy:metadata:block_behaviour:clusternum',
+                'link'  => 'privacy:metadata:block_behaviour:link',
+                'weight'  => 'privacy:metadata:block_behaviour:weight',
+            ],
+            'privacy:metadata:block_behaviour_common_links'
+        );
+
         return $collection;
     }
 
@@ -328,6 +386,9 @@ class provider implements
             $data = (object) $DB->get_records('block_behaviour_lord_options', $params);
             writer::with_context($context)->export_data([], $data);
 
+            $data = (object) $DB->get_records('block_behaviour_common_links', $params);
+            writer::with_context($context)->export_data([], $data);
+
             $params['studentid'] = $context->instanceid;
             $cond = 'userid = :userid OR studentid = :studentid';
 
@@ -346,6 +407,9 @@ class provider implements
             $data = (object) $DB->get_records_select('block_behaviour_centres', $cond, $params);
             writer::with_context($context)->export_data([], $data);
 
+            unset($params['userid']);
+            $data = (object) $DB->get_records('block_behaviour_survey_rsps', $params);
+            writer::with_context($context)->export_data([], $data);
         }
     }
 
@@ -377,6 +441,8 @@ class provider implements
         $DB->delete_records_select('block_behaviour_centres', $cond, $params);
         $DB->delete_records_select('block_behaviour_studyids', $cond, $params);
         $DB->delete_records_select('block_behaviour_lord_options', $cond, $params);
+        $DB->delete_records_select('block_behaviour_survey_rsps', $cond, $params);
+        $DB->delete_records_select('block_behaviour_common_links', $cond, $params);
     }
 
     /**
@@ -408,6 +474,7 @@ class provider implements
         $DB->delete_records('block_behaviour_man_clusters', $params);
         $DB->delete_records('block_behaviour_studyids', $params);
         $DB->delete_records('block_behaviour_lord_options', $params);
+        $DB->delete_records('block_behaviour_common_links', $params);
 
         $params['studentid'] = $context->instanceid;
         $cond = 'userid = :userid OR studentid = :studentid';
@@ -417,6 +484,9 @@ class provider implements
         $DB->delete_records_select('block_behaviour_comments', $cond, $params);
         $DB->delete_records_select('block_behaviour_man_members', $cond, $params);
         $DB->delete_records_select('block_behaviour_centres', $cond, $params);
+
+        unset($params['userid']);
+        $DB->delete_records('block_behaviour_survey_rsps', $params);
     }
 
     /**
@@ -443,6 +513,7 @@ class provider implements
             $DB->delete_records('block_behaviour_man_clusters', $params);
             $DB->delete_records('block_behaviour_studyids', $params);
             $DB->delete_records('block_behaviour_lord_options', $params);
+            $DB->delete_records('block_behaviour_common_links', $params);
 
             $params['studentid'] = $userid;
             $cond = 'userid = :userid OR studentid = :studentid';
@@ -452,6 +523,9 @@ class provider implements
             $DB->delete_records_select('block_behaviour_comments', $cond);
             $DB->delete_records_select('block_behaviour_man_members', $cond);
             $DB->delete_records_select('block_behaviour_centres', $cond);
+
+            unset($params['userid']);
+            $DB->delete_records('block_behaviour_survey_rsps', $params);
         }
     }
 }

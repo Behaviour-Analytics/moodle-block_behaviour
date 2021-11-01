@@ -29,6 +29,7 @@ require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
+$shownames = required_param('names', PARAM_INT);
 
 $course = get_course($id);
 require_login($course);
@@ -37,7 +38,7 @@ $context = context_course::instance($course->id);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $course->id))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
     die();
@@ -111,6 +112,9 @@ if (count($nodes) == 0) {
     }
 }
 
+if (!get_config('block_behaviour', 'allowshownames')) {
+    $shownames = get_config('block_behaviour', 'shownames') ? 1 : 0;
+}
 // Combine all data for transfer to client.
 $out = array(
     'logs'        => $loginfo,
@@ -138,7 +142,7 @@ $out = array(
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
     'manualscript'   => (string) new moodle_url('/blocks/behaviour/update-manual-clusters.php'),
     'iframeurl'      => (string) new moodle_url('/'),
-    'showstudentnames' => get_config('block_behaviour', 'shownames'),
+    'showstudentnames' => $shownames,
 );
 
 if ($debugcentroids) {
@@ -146,7 +150,7 @@ if ($debugcentroids) {
 }
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/view.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/view.php', array('id' => $course->id, 'names' => $shownames));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // CSS.
@@ -164,6 +168,6 @@ $PAGE->set_heading($course->fullname);
 // Output page.
 echo $OUTPUT->header();
 
-echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth));
+echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames));
 
 echo $OUTPUT->footer();

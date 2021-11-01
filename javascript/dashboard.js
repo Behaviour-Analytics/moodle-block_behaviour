@@ -1,4 +1,3 @@
-<?php
 // This file is part of Moodle - http://moodle.org/
 //
 // Moodle is free software: you can redistribute it and/or modify
@@ -15,18 +14,25 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * The version information for Behaviour Analytics.
+ * Simple script that waits for AMD modules to load.
  *
  * @package block_behaviour
  * @author Ted Krahn
- * @copyright 2019 Athabasca University
+ * @copyright 2021 Athabasca University
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-defined('MOODLE_INTERNAL') || die();
+/**
+ * Function waits for modules to be ready, then inits the graph program.
+ *
+ * @param {object} Y Some internal Moodle thing, not used here
+ * @param {object} incoming The incoming server data
+ */
+function waitForModules(Y, incoming) { // eslint-disable-line
 
-$plugin->version   = 2021110100;
-$plugin->requires  = 2015111600; // Moodle 3.0.
-$plugin->component = 'block_behaviour';
-$plugin->release   = 'v0.7.8';
-$plugin->maturity  = MATURITY_BETA;
+    if (window.dataDrivenDocs && window.behaviourAnalyticsDashboard) {
+        window.behaviourAnalyticsDashboard(incoming);
+    } else {
+        setTimeout(waitForModules.bind(this, Y, incoming), 700);
+    }
+}

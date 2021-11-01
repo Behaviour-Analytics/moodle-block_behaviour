@@ -102,25 +102,28 @@ class block_behaviour extends block_base {
         $task->update_course($course);
 
         $this->content = new stdClass();
+        $shownames = $this->config && $this->config->shownames ? 1 : 0;
 
         // Link to the graphing/clustering stages.
         $this->content->text = html_writer::tag('a', get_string("launchplugin", "block_behaviour"),
             array('href' => new moodle_url('/blocks/behaviour/view.php', array(
-                'id' => $COURSE->id
+                'id' => $COURSE->id,
+                'names' => $shownames,
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to the clustering replay stage.
         $this->content->text .= html_writer::tag('a', get_string("launchreplay", "block_behaviour"),
             array('href' => new moodle_url('/blocks/behaviour/replay.php', array(
-                'id'     => $COURSE->id
+                'id' => $COURSE->id,
+                'names' => $shownames,
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to module node positioning.
         $this->content->text .= html_writer::tag('a', get_string("launchconfiguration", "block_behaviour"),
             array('href' => new moodle_url('/blocks/behaviour/position.php', array(
-                'id'  => $COURSE->id,
+                'id' => $COURSE->id,
             ))));
         $this->content->text .= html_writer::empty_tag('br');
 
@@ -149,6 +152,16 @@ class block_behaviour extends block_base {
             $this->content->text .= html_writer::tag('a', get_string("settings", "block_behaviour"),
                 array('href' => new moodle_url('/blocks/behaviour/custom_settings.php', array(
                     'id' => $COURSE->id
+                ))));
+            $this->content->text .= html_writer::empty_tag('br');
+        }
+
+        // Link to the clustering dashboard, for researchers only.
+        if (get_config('block_behaviour', 'c_'.$COURSE->id.'_p_'.$USER->id)) {
+            $this->content->text .= html_writer::tag('a', get_string("dashanchor", "block_behaviour"),
+                array('href' => new moodle_url('/blocks/behaviour/dashboard.php', array(
+                    'id' => $COURSE->id,
+                    'names' => $shownames,
                 ))));
             $this->content->text .= html_writer::empty_tag('br');
         }

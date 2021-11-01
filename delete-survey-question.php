@@ -15,11 +15,11 @@
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
 /**
- * This script is used to delete an unwanted clustering data set.
+ * This script is called to delete a survey question from the DB.
  *
  * @package block_behaviour
  * @author Ted Krahn
- * @copyright 2020 Athabasca University
+ * @copyright 2021 Athabasca University
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
@@ -28,41 +28,41 @@ require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 
 defined('MOODLE_INTERNAL') || die();
 
-$courseid = required_param('cid', PARAM_INT);
-$recordsdata = required_param('data', PARAM_RAW);
-
+$data = required_param('data', PARAM_RAW);
 require_sesskey();
 
-$course = get_course($courseid);
+$data = (array) json_decode($data);
+$course = get_course(intval($data['courseid']));
 
 require_login($course);
-$context = context_course::instance($courseid);
+$context = context_course::instance($course->id);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
 if (!block_behaviour_is_installed($course->id)) {
 
-    redirect(new moodle_url('/course/view.php', array('id' => $courseid)));
+    redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
     die();
 }
 
-$data = explode('_', json_decode($recordsdata));
+$DB->delete_records('block_behaviour_survey_qs', ['id' => $data['id']]);
+$DB->delete_records('block_behaviour_survey_opts', ['question' => $data['id']]);
 
-if ($USER->id != intval($data[0]) || $courseid != intval($data[1])) {
-    die('Bad data passed');
+$sql = "SELECT * FROM {block_behaviour_survey_qs} WHERE survey = :survey AND ordering > :ordering";
+$records = $DB->get_records_sql($sql, [
+    'survey' => $data['survey'],
+    'ordering' => $data['ordering'],
+]);
+
+foreach ($records as $r) {
+    $params = [
+        'id' => $r->id,
+        'survey' => $r->survey,
+        'qtype' => $r->qtype,
+        'qtext' => $r->qtext,
+        'ordering' => $r->ordering - 1
+    ];
+    $DB->update_record('block_behaviour_survey_qs', $params);
 }
 
-$params = array(
-    'userid' => intval($data[0]),
-    'courseid' => intval($data[1]),
-    'coordsid' => intval($data[2]),
-    'clusterid' => intval($data[3]),
-);
-$DB->delete_records('block_behaviour_clusters', $params);
-$DB->delete_records('block_behaviour_members', $params);
-$DB->delete_records('block_behaviour_man_clusters', $params);
-$DB->delete_records('block_behaviour_man_members', $params);
-$DB->delete_records('block_behaviour_comments', $params);
-
-die('Cluster data deleted for ID: ' . $params['clusterid']);
-
+die('Question deleted and ordering updated');

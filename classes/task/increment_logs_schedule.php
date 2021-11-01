@@ -109,7 +109,9 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
             $this->update_centres($course, $modcoords);
 
-            $this->update_clusters($course->courseid, $teachers);
+            $data = $this->update_clusters($course->courseid, $teachers);
+
+            $this->update_common_graph($course->courseid, $modcoords, $data);
         }
 
         if ($updatesynctime) {
@@ -131,12 +133,12 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
         // Get the course ids and lastsync times of the courses for
         // which the plugin is being used.
-        $courses = $DB->get_records('block_behaviour_installed');
-        reset($courses);
+        $courses = block_behaviour_get_courses();
 
         // For each course the plugin is being used in.
         foreach ($courses as $course) {
-            $this->update_course($course);
+            $c = $DB->get_record('block_behaviour_installed', ['courseid' => $course->id]);
+            $this->update_course($c);
         }
     }
 
@@ -532,10 +534,12 @@ class increment_logs_schedule extends \core\task\scheduled_task {
      */
     private function update_clusters($courseid, &$teachers) {
 
+        $data = [];
         // Update clusters for each graph configuration (teacher).
         foreach ($teachers as $teacher) {
-            $this->update_the_clusters($courseid, $teacher);
+            $this->update_the_clusters($courseid, $teacher, $data);
         }
+        return $data;
     }
 
     /**
@@ -549,8 +553,9 @@ class increment_logs_schedule extends \core\task\scheduled_task {
      *
      * @param int $courseid The course id
      * @param int $teacher The teacher id
+     * @param array $data The cluster membership data for common links.
      */
-    private function update_the_clusters($courseid, $teacher) {
+    private function update_the_clusters($courseid, $teacher, &$data) {
         global $DB;
 
         // Get the different graph configurations for this course and user.
@@ -562,10 +567,12 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         $coordids = $DB->get_records('block_behaviour_clusters', $params, '', 'distinct coordsid');
 
         self::dbug("Update clusters: ".$courseid." ".$teacher." ".count($coordids));
+        $data[$teacher] = [];
 
         // For each graph configuration.
         foreach ($coordids as $run) {
             self::dbug("Configuration: ".$run->coordsid);
+            $data[$teacher][$run->coordsid] = [];
 
             // Get the different clustering runs.
             $params['coordsid'] = $run->coordsid;
@@ -630,7 +637,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
                             // Not converged, run another iteration of this clusterid.
                             $redoiteration = true;
-                            self::dbug("Not cnverged, redo iteration: ".$iteration);
+                            self::dbug("Not converged, redo iteration: ".$iteration);
                             break;
                         }
                     }
@@ -639,6 +646,8 @@ class increment_logs_schedule extends \core\task\scheduled_task {
                 if (!$redoiteration) {
                     next($clusterids);
                     $counter = 0;
+                    $newclusters['iteration'] = $iteration - 1;
+                    $data[$teacher][$run->coordsid][$cluster->clusterid] = $newclusters;
                 }
             }
             // Reset for next round.
@@ -839,5 +848,106 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         }
 
         return [$memberdata, $clusterdata, $redoiteration, $newclusteroids];
+    }
+
+    /**
+     * Called to calculate the common links among cluster members.
+     *
+     * @param int $cid The course id.
+     * @param array $modcoords The module coordinates.
+     * @param array $data The cluster membership data.
+     */
+    private function update_common_graph($cid, &$modcoords, &$data) {
+        global $DB;
+
+        // Get the logs for this course and re-index.
+        $records = $DB->get_records('block_behaviour_imported', ['courseid' => $cid], 'userid, time');
+        $logs = [];
+        foreach ($records as $r) {
+            $logs[] = $r;
+        }
+
+        // Build all links from logs for this course.
+        $studentlinks = [];
+        foreach ($modcoords as $tid => $coords) {
+
+            $studentlinks[$tid] = [];
+            foreach ($coords as $crdid => $modules) {
+
+                $studentlinks[$tid][$crdid] = [];
+                for ($i = 0; $i < count($logs); $i++) {
+
+                    if (!isset($studentlinks[$tid][$crdid][$logs[$i]->userid])) {
+                        $studentlinks[$tid][$crdid][$logs[$i]->userid] = [];
+                    }
+
+                    if ($i + 1 < count($logs) &&
+                        isset($modcoords[$tid][$crdid][$logs[$i]->moduleid]) &&
+                        $logs[$i]->userid == $logs[$i + 1]->userid &&
+                        isset($modcoords[$tid][$crdid][$logs[$i + 1]->moduleid])) {
+
+                        $key = $logs[$i]->moduleid . '_' . $logs[$i + 1]->moduleid;
+
+                        if (isset($studentlinks[$tid][$crdid][$logs[$i]->userid][$key])) {
+                            $studentlinks[$tid][$crdid][$logs[$i]->userid][$key] += 1;
+                        } else {
+                            $studentlinks[$tid][$crdid][$logs[$i]->userid][$key] = 1;
+                        }
+                    }
+                }
+            }
+        }
+        unset($tid);
+        unset($coords);
+        unset($crdid);
+
+        // Iterate through cluster memberships calculating common links.
+        $commondata = [];
+        foreach ($data as $tid => $coords) {
+            foreach ($coords as $crdid => $run) {
+                foreach ($run as $clrid => $clusters) {
+
+                    $iteration = $clusters['iteration'];
+                    foreach ($clusters as $cnum => $members) {
+                        if ($cnum === 'iteration') {
+                            continue;
+                        }
+
+                        $links = [];
+                        foreach ($members as $m) {
+                            foreach ($studentlinks[$tid][$crdid][$m->studentid] as $k => $v) {
+
+                                if (!isset($links[$k])) {
+                                    $links[$k] = [];
+                                }
+                                $links[$k][$m->studentid] = $v;
+                            }
+                        }
+                        foreach ($links as $l => $students) {
+                            if (count($members) == count($students)) {
+                                $min = PHP_INT_MAX;
+
+                                foreach ($students as $s => $w) {
+                                    if ($min > $w) {
+                                        $min = $w;
+                                    }
+                                }
+                                $commondata[] = (object) array(
+                                    'courseid' => $cid,
+                                    'userid' => $tid,
+                                    'coordsid' => $crdid,
+                                    'clusterid' => $clrid,
+                                    'iteration' => $iteration,
+                                    'clusternum' => $cnum,
+                                    'link' => $l,
+                                    'weight' => $min
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        $DB->insert_records('block_behaviour_common_links', $commondata);
     }
 }

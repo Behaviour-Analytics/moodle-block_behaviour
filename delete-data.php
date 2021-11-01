@@ -34,7 +34,7 @@ $course = get_course($id);
 require_login($course);
 
 $context = context_course::instance($course->id);
-require_capability('block/behaviour:view', $context);
+require_capability('block/behaviour:export', $context);
 
 // Set up the page.
 $PAGE->set_url('/blocks/behaviour/delete-data.php', array('id' => $course->id));
@@ -98,7 +98,7 @@ if ($mform->is_cancelled()) {
     // Output form.
 
     echo $OUTPUT->header();
-    echo html_writer::div(block_behaviour_get_nav_links(), '');
+    echo html_writer::div(block_behaviour_get_nav_links(0), '');
     echo html_writer::div('<hr/>', '');
     $mform->display();
     echo $OUTPUT->footer();

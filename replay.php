@@ -29,6 +29,7 @@ require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
+$shownames = required_param('names', PARAM_INT);
 
 $course = get_course($id);
 require_login($course);
@@ -37,11 +38,12 @@ $context = context_course::instance($course->id);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $course->id))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
     die();
 }
+$installed = $DB->get_record('block_behaviour_installed', array('courseid' => $course->id));
 
 // Trigger a behaviour analytics viewed event.
 $event = \block_behaviour\event\behaviour_viewed::create(array('context' => $context));
@@ -208,6 +210,9 @@ for ($i = 0; $i < count($users); $i++) {
     } // End for each coordsids.
 } // End for each user.
 
+if (!get_config('block_behaviour', 'allowshownames')) {
+    $shownames = get_config('block_behaviour', 'shownames') ? 1 : 0;
+}
 // Combine all data and send to client program.
 $out = array(
     'logs'           => [],
@@ -229,13 +234,15 @@ $out = array(
     'strings'        => block_behaviour_get_lang_strings(),
     'sesskey'        => sesskey(),
     'version36'      => $version36,
+    'iframeurl'      => (string) new moodle_url('/'),
     'coordsscript'   => (string) new moodle_url('/blocks/behaviour/update-coords.php'),
     'clustersscript' => (string) new moodle_url('/blocks/behaviour/update-clusters.php'),
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
     'manualscript'   => (string) new moodle_url('/blocks/behaviour/update-manual-clusters.php'),
     'deletescript'   => (string) new moodle_url('/blocks/behaviour/delete-cluster-data.php'),
-    'iframeurl'      => (string) new moodle_url('/'),
-    'showstudentnames' => get_config('block_behaviour', 'shownames'),
+    'predictionscript' => (string) new moodle_url('/blocks/behaviour/update-prediction.php'),
+    'showstudentnames' => $shownames,
+    'predictionanalysis' => $installed->prediction,
 );
 
 if ($debugcentroids) {
@@ -243,7 +250,7 @@ if ($debugcentroids) {
 }
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/replay.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/replay.php', array('id' => $course->id, 'names' => $shownames));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // JavaScript.
@@ -258,6 +265,6 @@ $PAGE->set_heading($course->fullname);
 // Output page.
 echo $OUTPUT->header();
 
-echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth));
+echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames));
 
 echo $OUTPUT->footer();

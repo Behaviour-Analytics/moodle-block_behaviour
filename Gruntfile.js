@@ -33,7 +33,12 @@ module.exports = function(grunt) {
     grunt.initConfig({
         pkg: grunt.file.readJSON('package.json'),
         jshint: {
-            files: ['Gruntfile.js', 'javascript/*.js', 'amd/src/behaviour-analytics.js', 'amd/src/modules.js'],
+            files: ['*.js',
+                    'javascript/*.js',
+                    'amd/src/dashboard.js',
+                    'amd/src/dashboard-modules.js',
+                    'amd/src/behaviour-analytics.js',
+                    'amd/src/modules.js'],
             options: {
                 globals: {
                     jQuery: true

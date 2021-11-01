@@ -559,9 +559,9 @@
 
                     edge.target = logs[i + 1].moduleId;
                     data.edges[logs[i].userId][m++] = edge;
+
                 } else if (data.edges[logs[i].userId].length == 0) {
                     // Student clicked only 1 thing, not enough to make a link, fake it.
-
                     data.edges[logs[i].userId][m++] = edge;
                 }
             }
@@ -2900,6 +2900,7 @@
             makeReplayControls();
             makeLogPanel();
             makeReplayMenu(manData);
+
         }
 
         /**
@@ -2965,6 +2966,11 @@
             assignModuleColours();
             getData();
             sliderValues = [0, graphData.maxSession];
+            document.getElementById('replay-stop').style.opacity = 1;
+            document.getElementById('replay-pause').style.opacity = 1;
+            document.getElementById('replay-back').style.opacity = 1;
+            document.getElementById('replay-forward').style.opacity = 1;
+            document.getElementById('delete-button').style.opacity = 1;
 
             // Ensure no new nodes are shown if they have no coords.
             for (var i = 0; i < graphData.nodes.length; i++) {
@@ -3822,6 +3828,7 @@
             stop.id = 'replay-stop';
             stop.innerHTML = '&#9606';
             stop.addEventListener('click', replayStop);
+            stop.style.opacity = 0;
             ctrlDiv.appendChild(stop);
 
             // Play/pause clustering control button.
@@ -3830,6 +3837,7 @@
             playPause.innerHTML = '&#9654';
             playPause.value = 'play';
             playPause.addEventListener('click', replayPause);
+            playPause.style.opacity = 0;
             ctrlDiv.appendChild(playPause);
 
             // Step back replay button.
@@ -3837,6 +3845,7 @@
             playStep1.id = 'replay-back';
             playStep1.innerHTML = '&#9614&#9664';
             playStep1.addEventListener('click', replayBack);
+            playStep1.style.opacity = 0;
             ctrlDiv.appendChild(playStep1);
 
             // Step forward replay button.
@@ -3845,13 +3854,15 @@
             playStep2.style.marginRight = '80px';
             playStep2.innerHTML = '&#9654&nbsp&nbsp&#9614';
             playStep2.addEventListener('click', replayForward.bind(this, true));
+            playStep2.style.opacity = 0;
             ctrlDiv.appendChild(playStep2);
 
-            // Step forward replay button.
+            // Delete data button.
             var del = document.createElement('button');
             del.id = 'delete-button';
             del.innerHTML = langStrings.delbutton;
             del.addEventListener('click', deleteClusteringData);
+            del.style.opacity = 0;
             ctrlDiv.appendChild(del);
         }
 
@@ -3894,8 +3905,13 @@
             scaledCentroids = null;
             resetPlayButton();
 
-            // Remove clustering name text box and button.
+            // Remove some things.
             document.getElementById('clustering-replay-comment').innerHTML = '&nbsp';
+            document.getElementById('replay-stop').style.opacity = 0;
+            document.getElementById('replay-pause').style.opacity = 0;
+            document.getElementById('replay-back').style.opacity = 0;
+            document.getElementById('replay-forward').style.opacity = 0;
+            document.getElementById('delete-button').style.opacity = 0;
 
             // Unselect selected clustering run.
             var sel = document.getElementById('replay-select');
@@ -4550,7 +4566,7 @@
          *
          * @param {array} studentKeys - Array of student ids.
          * @param {object} notNodes - Non-visible graph nodes.
-         * @param {number} numStudents - The number od students.
+         * @param {number} numStudents - The number of students.
          * @return {array} common - The common link set.
          */
         function getCommonLinks(studentKeys, notNodes, numStudents) {

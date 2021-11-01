@@ -51,18 +51,26 @@ if ($ADMIN->fulltree) {
         '0'
     ));
 
-    // Study ID settings header.
+    // Show student names setting header.
     $settings->add(new admin_setting_heading(
         'headerconfig2',
         get_string('adminheadershownames', 'block_behaviour'),
         ''
     ));
 
-    // The checkbox for showing the study ID.
+    // The checkbox for showing the student name.
     $settings->add(new admin_setting_configcheckbox(
         'block_behaviour/shownames',
         get_string('shownameslabel', 'block_behaviour'),
         get_string('shownamesdesc', 'block_behaviour'),
+        '0'
+    ));
+
+    // The checkbox for showing the student name.
+    $settings->add(new admin_setting_configcheckbox(
+        'block_behaviour/allowshownames',
+        get_string('allowshownameslabel', 'block_behaviour'),
+        get_string('allowshownamesdesc', 'block_behaviour'),
         '0'
     ));
 
@@ -93,22 +101,12 @@ if ($ADMIN->fulltree) {
     ));
 
     // Get the courses for which the plugin is installed.
-    $courses = $DB->get_records('block_behaviour_installed');
-
-    $courseids = [];
-    foreach ($courses as $course) {
-        $courseids[] = $course->courseid;
-    }
+    $courses = block_behaviour_get_courses();
 
     // Sanity check. When first installed, block is not used anywhere, therefore no settings.
-    if (count($courseids) == 0) {
+    if (count($courses) == 0) {
         return;
     }
-
-    // Get the names of these courses.
-    list($insql, $inparams) = $DB->get_in_or_equal($courseids);
-    $sql = "SELECT id, shortname FROM {course} WHERE id $insql;";
-    $courses = $DB->get_records_sql($sql, $inparams);
 
     // Get the roleid for students.
     $studentroleid = $DB->get_field('role', 'id', ['shortname' => 'student']);
@@ -160,4 +158,5 @@ if ($ADMIN->fulltree) {
             ));
         }
     }
+    unset($course);
 }

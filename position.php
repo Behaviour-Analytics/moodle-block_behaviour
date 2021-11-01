@@ -37,7 +37,7 @@ $context = context_course::instance($course->id);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $course->id))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
     die();
@@ -112,7 +112,6 @@ $out = array(
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
     'manualscript'   => (string) new moodle_url('/blocks/behaviour/update-manual-clusters.php'),
     'iframeurl'      => (string) new moodle_url('/'),
-    'showstudentnames' => get_config('block_behaviour', 'shownames'),
 );
 
 // If user is researcher, get all graph configurations for this course.
@@ -192,6 +191,6 @@ $PAGE->set_heading($course->fullname);
 // Output page.
 echo $OUTPUT->header();
 
-echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth));
+echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, 0));
 
 echo $OUTPUT->footer();

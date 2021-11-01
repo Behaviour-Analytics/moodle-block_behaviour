@@ -37,7 +37,7 @@ $context = context_course::instance($course->id);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $course->id))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
     die();
@@ -57,7 +57,7 @@ echo $OUTPUT->header();
 // Make the hyperlink menu.
 $cid = array('id' => $COURSE->id);
 
-echo html_writer::div(block_behaviour_get_nav_links(), '');
+echo html_writer::div(block_behaviour_get_nav_links(0), '');
 echo html_writer::div('<hr/>', '');
 
 echo html_writer::tag('a', get_string('docswhatis', 'block_behaviour'), array(
@@ -95,6 +95,10 @@ if (has_capability('block/behaviour:export', $context)) {
 
     echo html_writer::tag('a', get_string('docshowdelete', 'block_behaviour'), array(
     'href' => new moodle_url('/blocks/behaviour/documentation.php#howdelete', $cid)));
+    echo html_writer::empty_tag('br');
+
+    echo html_writer::tag('a', get_string('docshowdashboard', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdashboard', $cid)));
     echo html_writer::empty_tag('br');
 }
 
@@ -175,9 +179,19 @@ if (has_capability('block/behaviour:export', $context)) {
     echo html_writer::empty_tag('br');
     echo html_writer::empty_tag('br');
 
+    // How to delete data.
     echo html_writer::div(get_string('docshowdelete', 'block_behaviour'), 'bigger', array('id' => 'howdelete'));
     echo html_writer::empty_tag('br');
     echo html_writer::div(get_string('docsdelete1', 'block_behaviour'));
+    echo html_writer::empty_tag('br');
+    echo html_writer::empty_tag('br');
+
+    // How to use the dashboard.
+    echo html_writer::div(get_string('docshowdashboard', 'block_behaviour'), 'bigger', array('id' => 'howdashboard'));
+    echo html_writer::empty_tag('br');
+    echo html_writer::div(get_string('docsdash1', 'block_behaviour'));
+    echo html_writer::empty_tag('br');
+    echo html_writer::div(get_string('docsdash2', 'block_behaviour'));
     echo html_writer::empty_tag('br');
     echo html_writer::empty_tag('br');
 }

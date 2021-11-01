@@ -178,6 +178,40 @@ short name to ensure that the user is importing the right data into the right
 course. Either a file exported through the export form or through Moodle's report
 interface can be imported.
 
+Deleting data:
+Administrators can delete course data stored by the plugin. This may be useful
+when teaching a course with a new group of students. Or you may just want to
+delete old data and start clean. The delete data page has 3 options to delete
+clustering, graph configuration, or student log data. The clustering data is what
+is made when viewing and clustering students. This includes the clustering and
+membership data, as well as comment data. The graph configuration data is made
+when positioning the graph nodes. Deleting this data removes all graph
+configurations for the course as well as student centroid data associated with
+those graph configurations. The student log data is extracted from the Moodle
+logs and copied into another database table. It is the duplicated data that is
+deleted, not the Moodle log data itself. Data for all users in the course is
+deleted.
+
+The dashboard:
+The dashboard is still under construction, but has some working features. The
+dashboard consists of a number of links at the top of the page that will show
+different data. These include the summary tables, by graph and by iteration. The
+summary by graph shows the latest iteration of clustering and its results, while
+the summary by iteration shows results for all iterations. To view the summary
+for a single graph configuration, the graph can be selected from the select graph
+menu. Multiple configurations may be selected at once for comparison. When
+viewing graph summaries it is possible to download the shown data as a CSV file,
+less the bar graphs.
+
+There is also a surveys link that allows for survey management. There are 3
+surveys installed by default and there is the option to make custom surveys.
+Currently only Likert scale and binary choice questions are available. The link
+in the surveys menu can be used in a URL type course module to give students
+access to the survey. The course id needs to be passed in the URL as well, which
+is done in the settings under URL variables, where the value is "id". Currently,
+a student may only take a survey once. When viewing survey responses, it is
+possible to download the shown data as a CSV file.
+
 
 A note about third-party Javascript Libraries:
 

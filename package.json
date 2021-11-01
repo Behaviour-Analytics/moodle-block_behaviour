@@ -1,7 +1,7 @@
 {
   "name": "moodle-block_behaviour",
   "title": "Behaviour Analytics",
-  "version": "0.7.6",
+  "version": "0.7.8",
   "author": {
     "name": "Athabasca University"
   },
@@ -17,7 +17,7 @@
   "devDependencies": {
     "@babel/core": "^7.9.6",
     "@babel/preset-env": "^7.9.6",
-    "grunt": "^0.4.5",
+    "grunt": ">=1.3.0",
     "grunt-babel": "^8.0.0",
     "grunt-contrib-clean": "^2.0.0",
     "grunt-contrib-concat": "~0.4.0",

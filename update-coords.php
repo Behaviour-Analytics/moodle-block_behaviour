@@ -49,7 +49,7 @@ $context = context_course::instance($courseid);
 require_capability('block/behaviour:view', $context);
 
 // Was script called with course id where plugin is not installed?
-if (!$DB->record_exists('block_behaviour_installed', array('courseid' => $courseid))) {
+if (!block_behaviour_is_installed($course->id)) {
 
     redirect(new moodle_url('/course/view.php', array('id' => $courseid)));
     die();
@@ -104,4 +104,3 @@ $DB->insert_record('block_behaviour_scales', (object) array(
 block_behaviour_update_centroids_and_centres($courseid, $userid, $coordsid, $nds);
 
 die('Node coordinates and centroids updated at '.time());
-
