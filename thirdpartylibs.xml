@@ -29,13 +29,6 @@
         <licenseversion>1.0</licenseversion>
     </library>
     <library>
-        <location>amd/build/modules.min.js</location>
-        <name>D3 Geometry Concave Hull</name>
-        <version>1.0.0</version>
-        <license>Unlicense</license>
-        <licenseversion>1.0</licenseversion>
-    </library>
-    <library>
         <location>javascript/MersenneTwister/</location>
         <name>Mersenne Twister</name>
         <version>1.0.0</version>
@@ -50,13 +43,6 @@
         <licenseversion>3.0</licenseversion>
     </library>
     <library>
-        <location>amd/build/mersenne-twister.min.js</location>
-        <name>Mersenne Twister</name>
-        <version>1.0.0</version>
-        <license>BSD 3-Clause "New" or "Revised" License</license>
-        <licenseversion>3.0</licenseversion>
-    </library>
-    <library>
         <location>javascript/noUiSlider/</location>
         <name>No UI Slider</name>
         <version>14.3.0</version>
@@ -65,13 +51,6 @@
     </library>
     <library>
         <location>amd/src/nouislider.js</location>
-        <name>No UI Slider</name>
-        <version>14.3.0</version>
-        <license>MIT</license>
-        <licenseversion>1.0</licenseversion>
-    </library>
-    <library>
-        <location>amd/build/nouislider.min.js</location>
         <name>No UI Slider</name>
         <version>14.3.0</version>
         <license>MIT</license>
