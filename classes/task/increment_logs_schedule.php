@@ -172,7 +172,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
         list($insql, $inparams) = $DB->get_in_or_equal($oars, SQL_PARAMS_NAMED);
 
         // Pull the new logs.
-        $sql = "SELECT id, contextinstanceid, userid, contextlevel, timecreated
+        $sql = "SELECT id, contextinstanceid, userid, timecreated
                   FROM {logstore_standard_log}
                  WHERE courseid = :courseid
                    AND anonymous = 0

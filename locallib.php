@@ -2049,16 +2049,22 @@ class block_behaviour_exporter {
 
             // Get module type and name from module id.
             if (! isset($courseinfo[$value->contextinstanceid])) {
-                continue;
-            }
-            $module = $courseinfo[$value->contextinstanceid];
+                $loginfo[] = array(
+                    'modType' => 'unkown',
+                    'modName' => $value->contextinstanceid,
+                    'userId'  => $value->userid,
+                    'time'    => $value->timecreated
+                );
+            } else {
+                $module = $courseinfo[$value->contextinstanceid];
 
-            $loginfo[] = array(
-                'modType' => $module['type'],
-                'modName' => $module['name'],
-                'userId'  => $value->userid,
-                'time'    => $value->timecreated
-            );
+                $loginfo[] = array(
+                    'modType' => $module['type'],
+                    'modName' => $module['name'],
+                    'userId'  => $value->userid,
+                    'time'    => $value->timecreated
+                );
+            }
         }
 
         // Trigger a behaviour log exported event.
@@ -2220,10 +2226,9 @@ class block_behaviour_import_form extends moodleform {
             $type = $this->block_behaviour_get_mod_key($key);
 
             // Add data to DB array.
-            $moduleid = $courseinfo[$type.'_'.$imp->modName];
-            if ($moduleid) {
+            if (isset($courseinfo[$type.'_'.$imp->modName])) {
                 $logs[] = (object) array(
-                    'contextinstanceid' => $moduleid,
+                    'contextinstanceid' => $courseinfo[$type.'_'.$imp->modName],
                     'userid'            => $imp->userId,
                     'timecreated'       => $imp->time
                 );
