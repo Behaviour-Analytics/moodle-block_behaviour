@@ -11,7 +11,7 @@
     "url": "https://github.com/Behaviour-Analytics/moodle-block_behaviour"
   },
   "license": "GPL-3.0-or-later",
-  "engines": {
+    "engines": {
     "node": ">= 14.0.0"
   },
   "devDependencies": {

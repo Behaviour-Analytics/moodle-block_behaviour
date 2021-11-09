@@ -618,34 +618,95 @@
             var man = [];
             var gid = null;
             var cid = null;
+            var uid = null;
             var n = null;
             var s = null;
             var m = null;
 
             if (serverData.iteration) {
-                for (gid in map) { // Graphid.
-                    for (cid in map[gid]) { // Clustering id.
-                        for (var it in map[gid][cid]) { // Iteration.
+                for (uid in map) { // User id.
+                    for (gid in map[uid]) { // Graph id.
+                        for (cid in map[uid][gid]) { // Clustering id.
+                            for (var it in map[uid][gid][cid]) { // Iteration.
+
+                                data = [];
+
+                                for (n in map[uid][gid][cid][it]) { // Cluster number.
+                                    sys = map[uid][gid][cid][it][n][0].split(', ');
+                                    man = map[uid][gid][cid][it][n][1].split(', ');
+
+                                    // System clustering.
+                                    data[data.length] = {
+                                        members: map[uid][gid][cid][it][n][0],
+                                        memberCount: sys.length,
+                                        cluster: n,
+                                        type: 'system',
+                                    };
+
+                                    // Manual clustering.
+                                    if (map[uid][gid][cid][it][n][1].length > 0) {
+
+                                        data[data.length] = {
+                                            members: map[uid][gid][cid][it][n][1],
+                                            memberCount: man.length,
+                                            cluster: n,
+                                            type: 'manual',
+                                        };
+
+                                        // Compute the difference.
+                                        diff = [];
+                                        for (s in sys) {
+                                            if (man.indexOf(sys[s]) === -1) {
+                                                diff[diff.length] = sys[s];
+                                            }
+                                        }
+                                        for (m in man) {
+                                            if (sys.indexOf(man[m]) === -1) {
+                                                diff[diff.length] = man[m];
+                                            }
+                                        }
+                                        data[data.length] = {
+                                            members: diff.toString(),
+                                            memberCount: diff.length,
+                                            cluster: n,
+                                            type: 'diff',
+                                            percent: getBarDiffPercentage(sys, man, diff.length),
+                                        };
+                                    }
+                                }
+                                makeGraph(data,
+                                          '#pie' + cid + '-' + it,
+                                          map[uid][gid][cid][it].length * 3 == data.length,
+                                          serverData.langstrings);
+                            }
+                        }
+                    }
+                }
+            } else {
+                for (uid in map) { // User id.
+                    for (gid in map[uid]) { // Graphid.
+                        for (cid in map[uid][gid]) { // Clustering id.
 
                             data = [];
 
-                            for (n in map[gid][cid][it]) { // Cluster number.
-                                sys = map[gid][cid][it][n][0].split(', ');
-                                man = map[gid][cid][it][n][1].split(', ');
+                            for (n in map[uid][gid][cid]) { // Cluster number.
+
+                                sys = map[uid][gid][cid][n][0].split(', ');
+                                man = map[uid][gid][cid][n][1].split(', ');
 
                                 // System clustering.
                                 data[data.length] = {
-                                    members: map[gid][cid][it][n][0],
+                                    members: map[uid][gid][cid][n][0],
                                     memberCount: sys.length,
                                     cluster: n,
                                     type: 'system',
                                 };
 
                                 // Manual clustering.
-                                if (map[gid][cid][it][n][1].length > 0) {
+                                if (map[uid][gid][cid][n][1].length > 0) {
 
                                     data[data.length] = {
-                                        members: map[gid][cid][it][n][1],
+                                        members: map[uid][gid][cid][n][1],
                                         memberCount: man.length,
                                         cluster: n,
                                         type: 'manual',
@@ -673,63 +734,10 @@
                                 }
                             }
                             makeGraph(data,
-                                      '#pie' + cid + '-' + it,
-                                      map[gid][cid][it].length * 3 == data.length,
+                                      '#pie' + cid,
+                                      map[uid][gid][cid].length * 3 == data.length,
                                       serverData.langstrings);
                         }
-                    }
-                }
-            } else {
-                for (gid in map) { // Graphid.
-                    for (cid in map[gid]) { // Clustering id.
-
-                        data = [];
-
-                        for (n in map[gid][cid]) { // Cluster number.
-
-                            sys = map[gid][cid][n][0].split(', ');
-                            man = map[gid][cid][n][1].split(', ');
-
-                            // System clustering.
-                            data[data.length] = {
-                                members: map[gid][cid][n][0],
-                                memberCount: sys.length,
-                                cluster: n,
-                                type: 'system',
-                            };
-
-                            // Manual clustering.
-                            if (map[gid][cid][n][1].length > 0) {
-
-                                data[data.length] = {
-                                    members: map[gid][cid][n][1],
-                                    memberCount: man.length,
-                                    cluster: n,
-                                    type: 'manual',
-                                };
-
-                                // Compute the difference.
-                                diff = [];
-                                for (s in sys) {
-                                    if (man.indexOf(sys[s]) === -1) {
-                                        diff[diff.length] = sys[s];
-                                    }
-                                }
-                                for (m in man) {
-                                    if (sys.indexOf(man[m]) === -1) {
-                                        diff[diff.length] = man[m];
-                                    }
-                                }
-                                data[data.length] = {
-                                    members: diff.toString(),
-                                    memberCount: diff.length,
-                                    cluster: n,
-                                    type: 'diff',
-                                    percent: getBarDiffPercentage(sys, man, diff.length),
-                                };
-                            }
-                        }
-                        makeGraph(data, '#pie' + cid, map[gid][cid].length * 3 == data.length, serverData.langstrings);
                     }
                 }
             }

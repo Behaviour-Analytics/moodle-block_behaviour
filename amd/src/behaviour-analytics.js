@@ -1073,7 +1073,7 @@
                 });
 
                 // The iframe is on top so it can be scrolled.
-                iframe.src = iframeURL + '/mod/' + node.entype + '/view.php?id=' + node.id;
+                iframe.src = iframeURL + 'mod/' + node.entype + '/view.php?id=' + node.id;
                 document.body.appendChild(bgrnd);
                 document.body.appendChild(iframe);
             }

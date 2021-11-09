@@ -77,7 +77,7 @@ if ($type === -1) {
     $data = [];
     $cell = new html_table_cell(html_writer::div(get_string('underconst', 'block_behaviour')));
     $table->data = [new html_table_row([$cell])];
-    
+
 } else if ($type === 0) { // Select graph form.
 
     // Form was submitted, figure out what was selected.
@@ -86,8 +86,8 @@ if ($type === -1) {
         foreach ($memberdata as $k1 => $v1) {
             foreach ($v1 as $k2 => $v2) {
                 foreach ($fromform as $k => $v) {
-                    if ($k == 'chk' . $k2 && $v == 1) {
-                        $selected[] = $k2;
+                    if ($k == 'chk' . $k1 . '_' . $k2 && $v == 1) {
+                        $selected[] = $k1 . '_' . $k2;
                     }
                 }
             }

@@ -1077,13 +1077,14 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
 
     // Build the summary table.
     foreach ($mdata as $k1 => $v1) { // Userid.
+        $membermap[$k1] = [];
         foreach ($v1 as $k2 => $v2) { // Coordsid.
 
-            if (count($selected) > 0 && !in_array($k2, $selected)) {
+            if (count($selected) > 0 && !in_array($k1 . '_' . $k2, $selected)) {
                 continue;
             }
 
-            $membermap[$k2] = [];
+            $membermap[$k1][$k2] = [];
             $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
 
             foreach ($v2 as $k3 => $v3) { // Clusterid.
@@ -1098,6 +1099,14 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
                 if ($min === 1) { // Then did not converge, no summary to see.
                     continue;
                 }
+                $minmanual = 0;
+                if (isset($mandata[$k1][$k2][$k3])) {
+                    foreach ($mandata[$k1][$k2][$k3] as $mk => $mv) {
+                        if ($mk < $minmanual) {
+                            $minmanual = $mk;
+                        }
+                    }
+                }
                 unset($k4);
                 unset($v4);
 
@@ -1111,7 +1120,7 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
 
                 $records = $DB->get_records('block_behaviour_comments', $params, 'commentid desc');
                 $clusteringname = $records ? $records[key($records)]->remark : get_string('noname', 'block_behaviour');
-                $membermap[$k2][$k3] = [];
+                $membermap[$k1][$k2][$k3] = [];
 
                 // Totals for precision and recall.
                 $totaltp = 0;
@@ -1142,15 +1151,15 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
                     // This analysis has manual clustering data for this cluster,
                     // so calculate precision and recall.
                     if (isset($mandata[$k1]) && isset($mandata[$k1][$k2]) &&
-                        isset($mandata[$k1][$k2][$k3]) && isset($mandata[$k1][$k2][$k3][$min]) &&
-                        isset($mandata[$k1][$k2][$k3][$min][$k4])) {
+                        isset($mandata[$k1][$k2][$k3]) && isset($mandata[$k1][$k2][$k3][$minmanual]) &&
+                        isset($mandata[$k1][$k2][$k3][$minmanual][$k4])) {
 
                         $truepositives = 0;
                         $falsepositives = 0;
                         $falsenegatives = 0;
 
                         foreach ($studentids as $sid) {
-                            if (in_array($sid, $mandata[$k1][$k2][$k3][$min][$k4])) {
+                            if (in_array($sid, $mandata[$k1][$k2][$k3][$minmanual][$k4])) {
                                 $truepositives += 1;
                             } else {
                                 $falsepositives += 1;
@@ -1158,7 +1167,7 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
                         }
                         unset($sid);
 
-                        foreach ($mandata[$k1][$k2][$k3][$min][$k4] as $sid) {
+                        foreach ($mandata[$k1][$k2][$k3][$minmanual][$k4] as $sid) {
                             block_behaviour_add_student_name($namemap, $sid, $shownames);
                             $manstudents .= $namemap[$sid] . ', ';
                             if (!in_array($sid, $studentids)) {
@@ -1179,7 +1188,7 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
                         $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
                     }
 
-                    $membermap[$k2][$k3][$k4] = [ $students, $manstudents ];
+                    $membermap[$k1][$k2][$k3][$k4] = [ $students, $manstudents ];
 
                     // Add the data to the summary table.
                     $row = [];
@@ -1288,15 +1297,17 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
 
     // Build the summary table.
     foreach ($mdata as $k1 => $v1) { // Userid.
+        $membermap[$k1] = [];
         foreach ($v1 as $k2 => $v2) { // Coordsid.
 
-            $membermap[$k2] = [];
+            $membermap[$k1][$k2] = [];
             $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
 
             foreach ($v2 as $k3 => $v3) { // Clusterid.
 
                 $data[] = $headrow;
                 $csv .= $headcsv;
+                $lastmanual = 0;
 
                 // Get the name of this analysis.
                 $params['userid'] = $k1;
@@ -1305,18 +1316,18 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
 
                 $records = $DB->get_records('block_behaviour_comments', $params, 'commentid desc');
                 $clusteringname = $records ? $records[key($records)]->remark : get_string('noname', 'block_behaviour');
-                $membermap[$k2][$k3] = [];
+                $membermap[$k1][$k2][$k3] = [];
 
-                // Totals for precision and recall.
-                $totaltp = 0;
-                $totalfp = 0;
-                $totalfn = 0;
-
-                // Get the membership for this cluster.
                 foreach ($v3 as $k4 => $v4) { // Iteration.
                     $firstrow = true;
-                    $membermap[$k2][$k3][$k4] = [];
+                    $membermap[$k1][$k2][$k3][$k4] = [];
 
+                    // Totals for precision and recall.
+                    $totaltp = 0;
+                    $totalfp = 0;
+                    $totalfn = 0;
+
+                    // Get the membership for this cluster.
                     foreach ($v4 as $k5 => $v5) { // Cluster number.
 
                         $students = '';
@@ -1342,12 +1353,15 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
                             isset($mandata[$k1][$k2][$k3]) && isset($mandata[$k1][$k2][$k3][$k4]) &&
                             isset($mandata[$k1][$k2][$k3][$k4][$k5])) {
 
+                            $lastmanual = $k4;
+                        }
+                        if ($lastmanual) {
                             $truepositives = 0;
                             $falsepositives = 0;
                             $falsenegatives = 0;
 
                             foreach ($studentids as $sid) {
-                                if (in_array($sid, $mandata[$k1][$k2][$k3][$k4][$k5])) {
+                                if (in_array($sid, $mandata[$k1][$k2][$k3][$lastmanual][$k5])) {
                                     $truepositives += 1;
                                 } else {
                                     $falsepositives += 1;
@@ -1355,7 +1369,7 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
                             }
                             unset($sid);
 
-                            foreach ($mandata[$k1][$k2][$k3][$k4][$k5] as $sid) {
+                            foreach ($mandata[$k1][$k2][$k3][$lastmanual][$k5] as $sid) {
                                 block_behaviour_add_student_name($namemap, $sid, $shownames);
                                 $manstudents .= $namemap[$sid] . ', ';
                                 if (!in_array($sid, $studentids)) {
@@ -1377,7 +1391,7 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
                             $ftwo = $p + $r == 0 ? 0 : (5.0 * $p * $r) / ((4.0 * $p) + $r);
                         }
 
-                        $membermap[$k2][$k3][$k4][$k5] = [ $students, $manstudents ];
+                        $membermap[$k1][$k2][$k3][$k4][$k5] = [ $students, $manstudents ];
 
                         // Add the data to the summary table.
                         $row = [];
@@ -1466,7 +1480,11 @@ function block_behaviour_add_student_name(&$namemap, $sid, $shownames) {
                       FROM {user}
                      WHERE id = ?";
             $username = $DB->get_record_sql($sql, [$sid]);
-            $namemap[$sid] = $username->firstname . ' ' . $username->lastname;
+            if (!$username) {
+                $namemap[$sid] = count($namemap) + 1;
+            } else {
+                $namemap[$sid] = $username->firstname . ' ' . $username->lastname;
+            }
         } else {
             $namemap[$sid] = count($namemap) + 1;
         }
@@ -1840,7 +1858,7 @@ class block_behaviour_summary_form extends moodleform {
                     // If no convergence, then no summary to show.
                     if (isset($this->data[$k1][$k2][$k3][-1])) {
                         $islord = block_behaviour_get_lord_graph_status($this->cid, $k2);
-                        $mform->addElement('advcheckbox', 'chk' . $k2, $k1 . ' _ ' . $k2 . ' _ ' . $islord);
+                        $mform->addElement('advcheckbox', 'chk' . $k1 . '_' . $k2, $k1 . ' _ ' . $k2 . ' _ ' . $islord);
                         break;
                     }
                 }
