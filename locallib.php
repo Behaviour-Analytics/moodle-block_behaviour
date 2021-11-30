@@ -873,7 +873,7 @@ function block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames) {
 
     // Right side panel hold the hierarchical legend and clustering log panel.
     $cell3 = new html_table_cell(html_writer::div('', '', array('id' => "legend")).
-    html_writer::div('', '', array('id' => "log-panel")));
+    html_writer::div('', '', array('id' => "log-panel", 'class' => 'form-inline inline')));
     $cell3->attributes['width'] = $legendwidth.'px';
 
     // First row with both panels, graph in between.
@@ -924,7 +924,7 @@ function block_behaviour_get_nav_links($shownames) {
         html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
         $delete .
-        html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment']);
+        html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment', 'class' => 'form-inline inline']);
 
     return $links;
 }
@@ -2265,6 +2265,7 @@ class block_behaviour_import_form extends moodleform {
      * @return array
      */
     private function block_behaviour_get_logs_from_admin_report(&$imported, &$modtypes, &$courseinfo) {
+        // phpcs:disable
         /*
           Example fields in manually exported log file.
           0: ["24\/04\/19, 10:32",
@@ -2277,6 +2278,7 @@ class block_behaviour_import_form extends moodleform {
           7: "web",
           8: "127.0.0.1"]
         */
+        // phpcs:enable
         $logs = [];
         $unwantedusers = $this->block_behaviour_get_unwanted_users();
 

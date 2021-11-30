@@ -1,4 +1,4 @@
-/*global module:false*/
+/* global module:false */
 module.exports = function(grunt) {
 
     // We need to include the core Moodle grunt file too, otherwise we can't run tasks like "amd".
@@ -64,7 +64,6 @@ module.exports = function(grunt) {
             amd: {
                 files: [{
                     expand: true,
-                    //src: ['amd/src/behaviour-analytics.js', 'amd/src/modules.js'],
                     src: 'amd/src/*.js',
                     rename: uglifyRename
                 }],

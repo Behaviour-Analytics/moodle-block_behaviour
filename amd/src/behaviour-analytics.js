@@ -24,6 +24,9 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+/* eslint max-depth: ["warn", 5] */
+/* eslint-disable no-alert */
+
 (function(factory) {
     if (typeof define === "function" && define.amd) {
         // AMD. Register as an anonymous module.
@@ -4347,6 +4350,7 @@
 
             var textBox = document.createElement('input');
             textBox.type = 'text';
+            textBox.className = 'form-control custom-control mr-1';
             textBox.id = 'clustering-replay-comment-text';
 
             if (comments[0]) {
@@ -4358,6 +4362,7 @@
 
             var button = document.createElement('button');
             button.innerHTML = langStrings.clusteringnamebutton;
+            button.className = 'btn btn-primary';
             header.appendChild(button);
 
             button.addEventListener('click', function() {
