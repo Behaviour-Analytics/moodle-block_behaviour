@@ -24,6 +24,9 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
+/* eslint max-depth: ["warn", 5] */
+/* eslint-disable no-alert */
+
 (function(factory) {
     if (typeof define === "function" && define.amd) {
         // AMD. Register as an anonymous module.
@@ -1430,6 +1433,7 @@
             // Copy button.
             var copy = document.createElement('button');
             copy.innerHTML = langStrings.copy;
+            copy.className = "btn btn-secondary mb-1";
             copy.addEventListener('click', copyGraph);
             sm.appendChild(copy);
 
@@ -1438,6 +1442,7 @@
             // Print button.
             var print = document.createElement('button');
             print.innerHTML = langStrings.print;
+            print.className = "btn btn-secondary mb-1";
             print.addEventListener('click', printGraph);
             sm.appendChild(print);
 
@@ -2001,6 +2006,7 @@
 
             clusterButton = document.createElement('button');
             clusterButton.innerHTML = langStrings.cluster;
+            clusterButton.className = "btn btn-secondary mb-1";
             clusterButton.addEventListener('click', doCluster);
             sm.appendChild(clusterButton);
 
@@ -4198,6 +4204,7 @@
             playPause.style.marginLeft = '5px';
             playPause.style.marginRight = '5px';
             playPause.innerHTML = '&#9654'; // 9654=play.
+            playPause.className = "btn btn-secondary";
             playPause.addEventListener('click', doPlayPause);
             playPause.disabled = true;
 
@@ -4206,6 +4213,7 @@
             playStep.id = 'play-step';
             playStep.style.marginLeft = '5px';
             playStep.innerHTML = '&#9654&nbsp&nbsp&#9614'; // 9654=play, 9614=bar.
+            playStep.className = "btn btn-secondary";
             playStep.addEventListener('click', doPlayStep.bind(this, playPause));
             playStep.disabled = true;
 
@@ -4218,6 +4226,7 @@
             stop.style.marginTop = '5px';
             stop.style.marginLeft = '5px';
             stop.innerHTML = langStrings.reset;
+            stop.className = "btn btn-secondary";
             stop.addEventListener('click', stopClustering);
             ctrlDiv.appendChild(stop);
 
@@ -4341,6 +4350,7 @@
 
             var textBox = document.createElement('input');
             textBox.type = 'text';
+            textBox.className = 'form-control custom-control mr-1';
             textBox.id = 'clustering-replay-comment-text';
 
             if (comments[0]) {
@@ -4352,6 +4362,7 @@
 
             var button = document.createElement('button');
             button.innerHTML = langStrings.clusteringnamebutton;
+            button.className = 'btn btn-primary';
             header.appendChild(button);
 
             button.addEventListener('click', function() {
@@ -5698,6 +5709,7 @@
             // Make the copy button.
             var copy = document.createElement('button');
             copy.innerHTML = langStrings.copy;
+            copy.className = "btn btn-secondary mb-1";
 
             copy.addEventListener('click', function() {
                 window.getSelection().selectAllChildren(logPanel);
@@ -5716,7 +5728,7 @@
             // Make the print button.
             var print = document.createElement('button');
             print.innerHTML = langStrings.print;
-
+            print.className = "btn btn-secondary mb-1";
             print.addEventListener('click', function() {
 
                 // Adapted from https://stackoverflow.com/questions/4373922/how-to-

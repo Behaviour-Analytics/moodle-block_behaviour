@@ -1,3 +1,8 @@
+moodle-block_behaviour
+======================
+
+[![Moodle Plugin CI](https://github.com/Behaviour-Analytics/moodle-block_behaviour/workflows/Moodle%20Plugin%20CI/badge.svg?branch=master)](https://github.com/Behaviour-Analytics/moodle-block_behaviour/actions?query=workflow%3A%22Moodle+Plugin+CI%22+branch%3Amaster)
+
 Short description:
 
 Behaviour Analytics is a Moodle block plugin that is intended for extracting

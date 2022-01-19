@@ -21,6 +21,10 @@
  * @copyright 2021 Athabasca University
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
+
+/* eslint max-depth: ["warn", 9] */
+/* eslint complexity: ["warn", 21] */
+
 (function(factory) {
     if (typeof define === "function" && define.amd) {
         // AMD. Register as an anonymous module.
