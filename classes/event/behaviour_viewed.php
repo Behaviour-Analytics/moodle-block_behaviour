@@ -25,8 +25,6 @@
 
 namespace block_behaviour\event;
 
-defined('MOODLE_INTERNAL') || die();
-
 /**
  * The event class.
  *
