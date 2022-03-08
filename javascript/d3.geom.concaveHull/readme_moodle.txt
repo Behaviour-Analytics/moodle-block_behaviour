@@ -9,5 +9,5 @@ download the code from https://github.com/emeeks/d3.geom.concaveHull and place
 it in this directory, overwriting the current version. The code from
 d3.geom.concaveHull.js must be cut and pasted into the amd/src/modules.js file,
 replacing the current concave hull code. Grunt must then be run to minify the
-altered modules.js script. Finally, update the lib/thirdpartylibs.xml file with
+altered modules.js script. Finally, update the thirdpartylibs.xml file with
 the latest version number, if applicable.

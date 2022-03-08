@@ -63,6 +63,8 @@ $DB->delete_records('block_behaviour_members', $params);
 $DB->delete_records('block_behaviour_man_clusters', $params);
 $DB->delete_records('block_behaviour_man_members', $params);
 $DB->delete_records('block_behaviour_comments', $params);
+$DB->delete_records('block_behaviour_common_links', $params);
+$DB->delete_records('block_behaviour_man_cmn_link', $params);
 
 die('Cluster data deleted for ID: ' . $params['clusterid']);
 

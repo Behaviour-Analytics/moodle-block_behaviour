@@ -51,7 +51,6 @@ function block_behaviour_get_courses() {
  * @return boolean
  */
 function block_behaviour_is_installed($courseid) {
-    global $DB;
 
     $courses = block_behaviour_get_courses();
 
@@ -166,7 +165,7 @@ function block_behaviour_get_nodes($coordsid, &$table, $params) {
             $nodes[$row->moduleid] = array(
                 'xcoord'  => $row->xcoord,
                 'ycoord'  => $row->ycoord,
-                'visible' => $row->visible
+                'visible' => intval($row->visible),
             );
         }
         if (is_numeric($row->moduleid)) {
@@ -286,6 +285,102 @@ function block_behaviour_get_lord_link_data($courseid, $coordsid) {
     }
 
     return $links;
+}
+
+/**
+ * Called to get the graph data for any type of graph.
+ *
+ * @param int $coordid The graph configuration ID.
+ * @param int $userid The user ID.
+ * @param stdClass $course The course.
+ * @param array $mods The course modules.
+ * @param array $modids The course module ids.
+ * @return array
+ */
+function block_behaviour_get_graph_data($coordid, $userid, &$course, &$mods, &$modids) {
+    global $DB;
+
+    $nodes = [];
+    $links = [];
+    $uselsa = 0;
+    $params = array(
+        'courseid' => $course->id,
+        'userid' => $userid
+    );
+
+    // Get the LORD integration options.
+    $lord = $DB->get_record('block_behaviour_lord_options', $params);
+
+    // Try to get the LORD graph data, if configured.
+    if ($lord && $lord->uselord) {
+
+        list($coordsid, $scale, $nodes, $numnodes) =
+            block_behaviour_get_lord_scale_and_node_data($coordid, $userid, $course, $lord->usecustom);
+        $links = block_behaviour_get_lord_link_data($course->id, $coordsid);
+
+        // When called from replay.php, always have coordid and don't want to do this.
+        // Modules may have been added or removed from the course, so revert to regular graph.
+        if (!$coordid && !block_behaviour_are_mods_nodes($nodes, $modids)) {
+            $links = [];
+        }
+    }
+
+    if (count($links) == 0) {
+        // Get the Behaviour Analytics graph.
+        list($coordsid, $scale, $nodes, $numnodes) =
+            block_behaviour_get_scale_and_node_data($coordid, $userid, $course);
+
+        // Might be a LSA graph.
+        $params['coordsid'] = $coordsid;
+        $links = block_behaviour_get_lsa_links($params);
+
+        // When called from replay.php, always have coordid and don't want to do this.
+        // Modules may have been added or removed from the course, so revert to regular graph.
+        if (!$coordid && !block_behaviour_are_mods_nodes($nodes, $modids)) {
+            $links = [];
+            $nodes = [];
+        }
+
+        if (count($links) > 0) {
+
+            // Ensure all nodes have required information.
+            foreach ($mods as $m) {
+                $nodes[$m['id']]['id'] = $m['id'];
+                $nodes[$m['id']]['entype'] = $m['entype'];
+                $nodes[$m['id']]['type'] = $m['type'];
+                $nodes[$m['id']]['name'] = $m['name'];
+                $nodes[$m['id']]['group'] = $m['sect'];
+            }
+
+            $uselsa = 1;
+        }
+    }
+
+    return [$coordsid, $scale, $nodes, $numnodes, $links, $uselsa];
+}
+
+/**
+ * Get the log and user data.
+ *
+ * @param array $nodes The map of module ids
+ * @param array $modids The course module ids
+ * @return boolean
+ */
+function block_behaviour_are_mods_nodes(&$nodes, &$modids) {
+
+    foreach ($nodes as $mid => $value) {
+        if (!isset($modids[$mid]) && is_numeric($mid)) {
+            return false;
+        }
+    }
+    unset($mid);
+    unset($value);
+    foreach ($modids as $mid => $value) {
+        if (!isset($nodes[$mid])) {
+            return false;
+        }
+    }
+    return true;
 }
 
 /**
@@ -552,6 +647,7 @@ function block_behaviour_check_got_all_mods(&$mods, &$nodes, &$modids) {
             $mods[] = array(
                 'id'   => $mid,
                 'type' => 'unknown',
+                'entype' => 'unknown',
                 'name' => 'unknown'.$mid,
                 'sect' => $sect
             );
@@ -599,6 +695,10 @@ function block_behaviour_get_centroids(&$courseid, &$coordsid) {
  */
 function block_behaviour_update_student_centroid($courseid, $userid, $studentid, $coordsid, $x, $y, $n) {
     global $DB;
+
+    if (!$n) { // Avoid division by zero.
+        return;
+    }
 
     // New DB table values.
     $params = array(
@@ -671,6 +771,9 @@ function block_behaviour_update_centroids_and_centres($courseid, $userid, $coord
     unset($studentid);
     foreach ($clicks as $studentid => $data) {
 
+        if (count($data) == 0) { // Avoid DB missing value error.
+            continue;
+        }
         $centre = $data[intval(count($data) / 2)];
 
         $records[] = (object) array(
@@ -843,6 +946,49 @@ function block_behaviour_get_lang_strings() {
         'delete' => get_string('delete', 'block_behaviour'),
         'edit' => get_string('edit', 'block_behaviour'),
         'predictionbox' => get_string('predictionbox', 'block_behaviour'),
+        'option' => get_string('option', 'block_behaviour'),
+        'likert' => get_string('likert', 'block_behaviour'),
+        'binary' => get_string('binary', 'block_behaviour'),
+        'yn' => get_string('yn', 'block_behaviour'),
+        'tf' => get_string('tf', 'block_behaviour'),
+        'gap' => get_string('gap', 'block_behaviour'),
+        'and' => get_string('and', 'block_behaviour'),
+        'lnd' => get_string('lnd', 'block_behaviour'),
+        'egapt' => get_string('egapt', 'block_behaviour'),
+        'aossn' => get_string('aossn', 'block_behaviour'),
+        'slnds' => get_string('slnds', 'block_behaviour'),
+        'ynscale' => get_string('ynscale', 'block_behaviour'),
+        'tfscale' => get_string('tfscale', 'block_behaviour'),
+        'gapscale' => get_string('gapscale', 'block_behaviour'),
+        'andscale' => get_string('andscale', 'block_behaviour'),
+        'lndscale' => get_string('lndscale', 'block_behaviour'),
+        'egaptscale' => get_string('egaptscale', 'block_behaviour'),
+        'aossnscale' => get_string('aossnscale', 'block_behaviour'),
+        'slndsscale' => get_string('slndsscale', 'block_behaviour'),
+        'custom' => get_string('custom', 'block_behaviour'),
+        'multiple' => get_string('multiple', 'block_behaviour'),
+        'open' => get_string('open', 'block_behaviour'),
+        'customselect' => get_string('customselect', 'block_behaviour'),
+        'addoption' => get_string('addoption', 'block_behaviour'),
+        'alreadyedit' => get_string('alreadyedit', 'block_behaviour'),
+        'changeqtype' => get_string('changeqtype', 'block_behaviour'),
+        'cancel' => get_string('cancel', 'block_behaviour'),
+        'courseaverage' => get_string('courseaverage', 'block_behaviour'),
+        'show8dim' => get_string('showdim', 'block_behaviour', 8),
+        'show4dim' => get_string('showdim', 'block_behaviour', 4),
+        'active' => get_string('active', 'block_behaviour'),
+        'reflective' => get_string('reflective', 'block_behaviour'),
+        'sensing' => get_string('sensing', 'block_behaviour'),
+        'intuitive' => get_string('intuitive', 'block_behaviour'),
+        'visual' => get_string('visual', 'block_behaviour'),
+        'verbal' => get_string('verbal', 'block_behaviour'),
+        'sequential' => get_string('sequential', 'block_behaviour'),
+        'global' => get_string('global', 'block_behaviour'),
+        'agreeable' => get_string('agreeable', 'block_behaviour'),
+        'openness' => get_string('openness', 'block_behaviour'),
+        'extraversion' => get_string('extraversion', 'block_behaviour'),
+        'neuroticism' => get_string('neuroticism', 'block_behaviour'),
+        'conscientiousness' => get_string('conscientiousness', 'block_behaviour'),
     );
 }
 
@@ -852,28 +998,33 @@ function block_behaviour_get_lang_strings() {
  * @param int $panelwidth The width of the left side panel.
  * @param int $legendwidth The width of the right side panel.
  * @param int $shownames The config values to show names or not.
+ * @param int $uselsa Flag to use the LSA graph or not.
  * @return stdClass
  */
-function block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames) {
+function block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames, $uselsa) {
 
     // Build the table that holds the graph and UI components.
     $table = new html_table();
     $data = [];
 
     // Navigation links.
-    $cell0 = new html_table_cell(block_behaviour_get_nav_links($shownames));
+    $cell0 = new html_table_cell(block_behaviour_get_nav_links($shownames, $uselsa));
     $cell0->colspan = 3;
     $data[] = new html_table_row(array($cell0));
 
     // Left side panel holds the student/teacher menu, animation controls, and cluster slider.
-    $cell1 = new html_table_cell(html_writer::div('', '', array('id' => "student-menu")).
-    html_writer::div('', '', array('id' => "anim-controls")).
-    html_writer::div('', '', array('id' => "cluster-slider")));
+    $cell1 = new html_table_cell(
+        html_writer::div('', '', array('id' => "student-menu")).
+        html_writer::div('', '', array('id' => "anim-controls")).
+        html_writer::div('', '', array('id' => "cluster-slider"))
+    );
     $cell1->attributes['width'] = $panelwidth.'px';
 
     // Right side panel hold the hierarchical legend and clustering log panel.
-    $cell3 = new html_table_cell(html_writer::div('', '', array('id' => "legend")).
-    html_writer::div('', '', array('id' => "log-panel", 'class' => 'form-inline inline')));
+    $cell3 = new html_table_cell(
+        html_writer::div('', '', array('id' => "legend")).
+        html_writer::div('', '', array('id' => "log-panel", 'class' => 'form-inline inline'))
+    );
     $cell3->attributes['width'] = $legendwidth.'px';
 
     // First row with both panels, graph in between.
@@ -894,17 +1045,60 @@ function block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames) {
 }
 
 /**
+ * Called to get the HTML table for the LSA results.
+ *
+ * @param array $links The LSA link data.
+ * @param array $mods The course module information.
+ * @return html_table
+ */
+function block_behaviour_get_lsa_table(&$links, &$mods) {
+
+    $table = new html_table();
+    $table->caption = get_string('lsaresults', 'block_behaviour');
+
+    $table->head = [
+        get_string('source', 'block_behaviour'),
+        get_string('target', 'block_behaviour'),
+        get_string('value', 'block_behaviour'),
+        get_string('frequency', 'block_behaviour'),
+        get_string('students', 'block_behaviour'),
+    ];
+    $data = [];
+
+    usort($links, function($a, $b) {
+        if ($a['value'] == $b['value']) {
+            return 0;
+        }
+        return $a['value'] > $b['value'] ? 0 : 1;
+    });
+
+    foreach ($links as $link) {
+        $c1 = new html_table_cell($mods[$link['source']]['type'] . ': ' . $mods[$link['source']]['name']);
+        $c2 = new html_table_cell($mods[$link['target']]['type'] . ': ' . $mods[$link['target']]['name']);
+        $c3 = new html_table_cell(round($link['value'], 2));
+        $c4 = new html_table_cell($link['frequency']);
+        $c5 = new html_table_cell($link['students']);
+        $data[] = new html_table_row([$c1, $c2, $c3, $c4, $c5]);
+    }
+
+    $table->data = $data;
+    return $table;
+}
+
+/**
  * Called to get the navigation links.
  *
  * @param int $shownames The config values to show names or not.
+ * @param int $uselsa Flag to use the LSA graph or not.
  * @return string
  */
-function block_behaviour_get_nav_links($shownames) {
+function block_behaviour_get_nav_links($shownames, $uselsa) {
     global $COURSE, $USER;
 
     $params = array(
         'id' => $COURSE->id,
         'names' => $shownames,
+        'uselsa' => $uselsa,
     );
     $view = new moodle_url('/blocks/behaviour/view.php', $params);
     $replay = new moodle_url('/blocks/behaviour/replay.php', $params);
@@ -920,11 +1114,11 @@ function block_behaviour_get_nav_links($shownames) {
     }
 
     $links = html_writer::link($view, get_string('launchplugin', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
-        $delete .
-        html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment', 'class' => 'form-inline inline']);
+           html_writer::link($replay, get_string('launchreplay', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+           html_writer::link($position, get_string('launchconfiguration', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+           html_writer::link($docs, get_string('docsanchor', 'block_behaviour')) . '&nbsp&nbsp&nbsp' .
+           $delete .
+           html_writer::span('&nbsp', '', ['id' => 'clustering-replay-comment', 'class' => 'form-inline inline']);
 
     return $links;
 }
@@ -1075,6 +1269,9 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
     }
     $headcsv = substr_replace($headcsv, PHP_EOL, -1);
 
+    $record = $DB->get_record('block', ['name' => 'lord']);
+    $lordinstalled = $record ? true : false;
+
     // Build the summary table.
     foreach ($mdata as $k1 => $v1) { // Userid.
         $membermap[$k1] = [];
@@ -1085,7 +1282,7 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
             }
 
             $membermap[$k1][$k2] = [];
-            $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
+            $islord = $lordinstalled ? block_behaviour_get_lord_graph_status($course->id, $k2) : '';
 
             foreach ($v2 as $k3 => $v3) { // Clusterid.
 
@@ -1199,7 +1396,7 @@ function block_behaviour_get_graph_summary(&$course, &$mdata, &$mandata, &$selec
                         $row[] = new html_table_cell(html_writer::div($islord, ''));
                         $row[] = new html_table_cell(html_writer::div($min, ''));
 
-                        $csv .= $k1 . ',' . $k2 . ',' . $clusteringname . ',' . $islord . ',' . $min . ',';
+                        $csv .= $k1 . ',' . $k2 . ',"' . $clusteringname . '","' . $islord . '",' . $min . ',';
 
                     } else {
                         for ($i = 0; $i < 5; $i++) {
@@ -1295,13 +1492,16 @@ function block_behaviour_get_iteration_summary(&$course, &$mdata, &$mandata, $sh
     }
     $headcsv = substr_replace($headcsv, PHP_EOL, -1);
 
+    $record = $DB->get_record('block', ['name' => 'lord']);
+    $lordinstalled = $record ? true : false;
+
     // Build the summary table.
     foreach ($mdata as $k1 => $v1) { // Userid.
         $membermap[$k1] = [];
         foreach ($v1 as $k2 => $v2) { // Coordsid.
 
             $membermap[$k1][$k2] = [];
-            $islord = block_behaviour_get_lord_graph_status($course->id, $k2);
+            $islord = $lordinstalled ? block_behaviour_get_lord_graph_status($course->id, $k2) : '';
 
             foreach ($v2 as $k3 => $v3) { // Clusterid.
 
@@ -1520,29 +1720,32 @@ function block_behaviour_get_surveys(&$course, $shownames) {
         $questions = $DB->get_records('block_behaviour_survey_qs', ['survey' => $s->id]);
         $row[] = new html_table_cell(html_writer::div(count($questions), ''));
 
-        $url = (string) new moodle_url('/blocks/behaviour/student-survey.php', ['sid' => $s->id]);
+        $params = [
+            'id' => $course->id,
+            'sid' => $s->id,
+        ];
+        $url = (string) new moodle_url('/blocks/behaviour/student-survey.php', $params);
         $row[] = new html_table_cell(html_writer::div($url, ''));
 
-        $params = array(
+        $params = [
             'id' => $course->id,
             'names' => $shownames,
             'type' => 6,
             'surveyid' => $s->id,
-        );
+        ];
         $a = html_writer::tag('a', get_string('viewsurvey', 'block_behaviour'), array(
             'href' => new moodle_url('#', $params)
         ));
         $row[] = new html_table_cell(html_writer::div($a, ''));
 
-        $params['deletesurvey'] = true;
         $params['type'] = 4;
         $a = html_writer::tag('a', get_string('edit', 'block_behaviour'), array(
             'href' => new moodle_url('#', $params)
         ));
         $row[] = new html_table_cell(html_writer::div($a, ''));
 
-        $params['deletesurvey'] = true;
         $params['type'] = 3;
+        $params['deletesurvey'] = true;
         $a = html_writer::tag('a', get_string('delete', 'block_behaviour'), array(
             'href' => new moodle_url('#', $params)
         ));
@@ -1643,83 +1846,1054 @@ function block_behaviour_make_new_survey() {
 function block_behaviour_get_survey_responses($course, $surveyid, $shownames) {
     global $DB;
 
-    // Get the survey responses.
+    // Get the survey responses and questions.
     $params = [
         'courseid' => $course->id,
         'surveyid' => $surveyid,
     ];
     $records = $DB->get_records('block_behaviour_survey_rsps', $params, 'studentid, attempt, qorder');
+    $qs = $DB->get_records('block_behaviour_survey_qs', ['survey' => $surveyid], 'ordering');
 
+    $questions = [];
+    $thead = [''];
+    $csv = ',';
+    $likertscale = explode(',', get_string('likertscale', 'block_behaviour'));
+    $ynscale = explode(',', get_string('ynscale', 'block_behaviour'));
+    $tfscale = explode(',', get_string('tfscale', 'block_behaviour'));
+    $gapscale = explode(',', get_string('gapscale', 'block_behaviour'));
+    $andscale = explode(',', get_string('andscale', 'block_behaviour'));
+    $lndscale = explode(',', get_string('lndscale', 'block_behaviour'));
+    $egaptscale = explode(',', get_string('egaptscale', 'block_behaviour'));
+    $aossnscale = explode(',', get_string('aossnscale', 'block_behaviour'));
+    $slndsscale = explode(',', get_string('slndsscale', 'block_behaviour'));
+
+    // Build the question and options arrays, as well as the header row.
+    foreach ($qs as $q) {
+
+        if ($q->qtype == 'likert') {
+            $options = $likertscale;
+        } else if ($q->qtype == 'yn') {
+            $options = $ynscale;
+        } else if ($q->qtype == 'tf') {
+            $options = $tfscale;
+        } else if ($q->qtype == 'gap') {
+            $options = $gapscale;
+        } else if ($q->qtype == 'and') {
+            $options = $andscale;
+        } else if ($q->qtype == 'lnd') {
+            $options = $lndscale;
+        } else if ($q->qtype == 'egapt') {
+            $options = $egaptscale;
+        } else if ($q->qtype == 'aossn') {
+            $options = $aossnscale;
+        } else if ($q->qtype == 'slnds') {
+            $options = $slndsscale;
+        } else if ($q->qtype == 'open') {
+            $options = [];
+        } else { // Binary, custom, or multiple.
+            $options = [];
+            $opts = $DB->get_records('block_behaviour_survey_opts', ['question' => $q->id], 'ordering');
+
+            foreach ($opts as $o) {
+                $options[$o->ordering] = $o->text;
+            }
+        }
+        $questions[$q->id] = array(
+            'options' => $options,
+            'rsps' => [],
+            'qtype' => $q->qtype,
+        );
+        $thead[] = $q->ordering;
+        $thead[] = $q->qtext;
+        $csv .= $q->ordering . ',"' . $q->qtext . '",';
+    }
+    $csv .= PHP_EOL;
+
+    // Start the output table.
     $table = new html_table();
     $table->caption = get_string('viewsurvey', 'block_behaviour');
-    $table->head = [
-        get_string('student', 'block_behaviour'),
-        get_string('question', 'block_behaviour'),
-        get_string('response', 'block_behaviour'),
-    ];
-    $csv = get_string('student', 'block_behaviour') . ',' .
-        get_string('question', 'block_behaviour') . ',' . get_string('response', 'block_behaviour') . PHP_EOL;
+    $table->head = $thead;
 
     $data = [];
     $row = [];
-    $seqid = 1;
+    $seqid = 0;
+    $students = [];
     $currentstudent = 0;
-    $currentattempt = 0;
-    $questiontext = '';
-    $questionmap = [];
-    $optionsmap = [];
-    $optiontext = '';
-    $likertscale = explode(',', get_string('likertscale', 'block_behaviour'));
+    $namemap = [];
 
-    // Build the table and csv for download.
+    // Build the student responses array.
     foreach ($records as $r) {
-        // Student name or sequential id, depending on settings.
-        if ($r->studentid != $currentstudent) {
-            $currentstudent = $r->studentid;
-            $name = $seqid++;
+        $questions[$r->questionid]['rsps'][$r->studentid] = $r->response;
 
-            if ($shownames) {
-                $username = $DB->get_record('user', ['id' => $r->studentid], 'id, firstname, lastname');
-                $name = $username->firstname . ' ' . $username->lastname;
+        if ($r->studentid != $currentstudent) {
+            $students[] = $r->studentid;
+            $currentstudent = $r->studentid;
+        }
+    }
+
+    // Build the table with student name and their responses.
+    foreach ($students as $i => $studentid) {
+
+        if ($shownames) {
+            $username = $DB->get_record('user', ['id' => $studentid], 'id, firstname, lastname');
+            $name = $username->firstname . ' ' . $username->lastname;
+        } else {
+            $name = $seqid++;
+        }
+
+        $row[] = new html_table_cell(html_writer::div($name, ''));
+        $csv .= '"' . $name . '",';
+        $namemap[$studentid] = $name;
+
+        // Add the student response, if this question was on the survey they took.
+        foreach ($questions as $question) {
+
+            if (isset($question['rsps'][$studentid]) && isset($question['options'])) {
+                if (is_numeric($question['rsps'][$studentid])) {
+                    $row[] = new html_table_cell(html_writer::div($question['rsps'][$studentid] + 1));
+                    $row[] = new html_table_cell(html_writer::div($question['options'][$question['rsps'][$studentid]]));
+                    $csv .= ($question['rsps'][$studentid] + 1) . ',"' . $question['options'][$question['rsps'][$studentid]] . '",';
+
+                } else if ($question['qtype'] == 'multiple') {
+                    $boxes = explode(',', $question['rsps'][$studentid]);
+                    $mrsps1 = '';
+                    $mrsps2 = '';
+                    $csv1 = '';
+                    $csv2 = '';
+
+                    foreach ($boxes as $k => $v) {
+                        if ($v) {
+                            $mrsps1 .= html_writer::div($v);
+                            $mrsps2 .= html_writer::div($question['options'][$k]);
+                            $csv1 .= $v . '-';
+                            $csv2 .= $question['options'][$k] . '-';
+                        }
+                    }
+                    $row[] = new html_table_cell(html_writer::div($mrsps1));
+                    $row[] = new html_table_cell(html_writer::div($mrsps2));
+                    $csv .= '"' . $csv1 . '","' . $csv2 . '",';
+
+                } else { // Open ended question.
+                    $row[] = new html_table_cell(html_writer::div(''));
+                    $row[] = new html_table_cell(html_writer::div($question['rsps'][$studentid]));
+                    $csv .= ',"' . $question['rsps'][$studentid] . '",';
+                }
+
+            } else {
+                $row[] = new html_table_cell(html_writer::div(''));
+                $row[] = new html_table_cell(html_writer::div(''));
+                $csv .= ',,';
+            }
+        }
+        $data[] = $row;
+        $row = [];
+        $csv .= PHP_EOL;
+    }
+
+    $table->data = $data;
+    return [ $table, $csv, $namemap ];
+}
+
+/**
+ * Called to calculate the common links among cluster members.
+ *
+ * @param int $cid The course id.
+ * @param int $tid The teacher id.
+ * @param int $coordsid The graph configuration id.
+ * @param int $clusterid The clustering analysis id.
+ * @param boolean $ismanual Is this for manual clustering or system clustering?
+ */
+function block_behaviour_update_common_graph($cid, $tid = 0, $coordsid = 0, $clusterid = 0, $ismanual = false) {
+    global $DB;
+
+    $params = ['courseid' => $cid];
+    if ($tid) {
+        $params['userid'] = $tid;
+    }
+    if ($coordsid) {
+        $params['coordsid'] = $coordsid;
+    }
+    if ($clusterid) {
+        $params['clusterid'] = $clusterid;
+    }
+
+    // Get the membership data.
+    $table = $ismanual ? 'block_behaviour_man_members' : 'block_behaviour_members';
+    $clustermembers = $DB->get_records($table, $params, 'userid, coordsid, clusterid, iteration DESC, clusternum');
+    unset($params['coordsid']);
+    unset($params['clusterid']);
+
+    // Build the module coordinates and cluster membership arrays.
+    $modcoords = [];
+    $data = [];
+    $currentclusterid = 0;
+    $currentiter = 0;
+    $clusters = [];
+
+    foreach ($clustermembers as $member) {
+        // Seeing a new teacher id.
+        if (!isset($modcoords[$member->userid])) {
+            $modcoords[$member->userid] = [];
+            $data[$member->userid] = [];
+        }
+
+        // Seeing a new graph configuration.
+        if (!isset($modcoords[$member->userid][$member->coordsid])) {
+            $modcoords[$member->userid][$member->coordsid] = [];
+            $data[$member->userid][$member->coordsid] = [];
+            $clusters = [];
+            $currentclusterid = $member->clusterid;
+
+            // Get the visible modules for this configuration.
+            $params['changed'] = $member->coordsid;
+            $coords = $DB->get_records('block_behaviour_coords', $params);
+
+            if (count($coords) == 0 && $DB->record_exists('block_instances', ['blockname' => 'lord'])) {
+                unset($params['userid']);
+                $coords = $DB->get_records('block_lord_coords', $params);
             }
 
+            foreach ($coords as $module) {
+                if (intval($module->visible)) {
+                    $modcoords[$member->userid][$member->coordsid][$module->moduleid] = intval($module->visible);
+                }
+            }
+        }
+
+        // Seeing a new clustering analysis for this graph configuration.
+        if (!isset($data[$member->userid][$member->coordsid][$member->clusterid])) {
+            $currentiter = $member->iteration;
+            $clusters = [];
+            $currentclusterid = $member->clusterid;
+        }
+
+        // Build cluster membership array.
+        if (!isset($clusters[$member->clusternum])) {
+            $clusters[$member->clusternum] = [];
+        }
+        $clusters['iteration'] = $member->iteration;
+        $clusters[$member->clusternum][] = $member;
+
+        // Have pulled more data than necessary. Ensure only last iteration included.
+        if ($currentiter > $member->iteration && $currentclusterid == $member->clusterid) {
+            $currentiter = $member->iteration;
+            $clusters = [];
+            $clusters[$member->clusternum] = [];
+            $clusters[$member->clusternum][] = $member;
+
+        } else {
+            // Add the cluster membership to the data array.
+            $data[$member->userid][$member->coordsid][$member->clusterid] = $clusters;
+        }
+    }
+
+    // Get the logs for this course and re-index so they start at 0.
+    $records = $DB->get_records('block_behaviour_imported', ['courseid' => $cid], 'userid, time');
+    $logs = [];
+    foreach ($records as $r) {
+        $logs[] = $r;
+    }
+    unset($tid);
+
+    // Build all links from logs.
+    $studentlinks = [];
+    foreach ($modcoords as $tid => $coordsids) {
+
+        $studentlinks[$tid] = [];
+        foreach ($coordsids as $crdid => $cooordsid) {
+
+            $studentlinks[$tid][$crdid] = [];
+            for ($i = 0; $i < count($logs); $i++) {
+
+                if (!isset($studentlinks[$tid][$crdid][$logs[$i]->userid])) {
+                    $studentlinks[$tid][$crdid][$logs[$i]->userid] = [];
+                }
+
+                // Ensure link is made only if user is the same and modules are visible.
+                if ($i + 1 < count($logs) &&
+                    isset($modcoords[$tid][$crdid][$logs[$i]->moduleid]) &&
+                    $logs[$i]->userid == $logs[$i + 1]->userid &&
+                    isset($modcoords[$tid][$crdid][$logs[$i + 1]->moduleid])) {
+
+                    $key = $logs[$i]->moduleid . '_' . $logs[$i + 1]->moduleid;
+
+                    // Sum the links.
+                    if (isset($studentlinks[$tid][$crdid][$logs[$i]->userid][$key])) {
+                        $studentlinks[$tid][$crdid][$logs[$i]->userid][$key] += 1;
+                    } else {
+                        $studentlinks[$tid][$crdid][$logs[$i]->userid][$key] = 1;
+                    }
+                }
+            }
+        }
+    }
+    unset($tid);
+
+    $params = ['courseid' => $cid];
+    $table = $ismanual ? 'block_behaviour_man_cmn_link' : 'block_behaviour_common_links';
+    $commondata = [];
+
+    // Iterate through cluster memberships calculating common links.
+    foreach ($data as $tid => $coords) {
+        $params['userid'] = $tid;
+
+        foreach ($coords as $crdid => $run) {
+            $params['coordsid'] = $crdid;
+
+            foreach ($run as $clrid => $clusters) {
+                $iteration = $clusters['iteration'];
+                $params['clusterid'] = $clrid;
+                $params['iteration'] = $iteration;
+
+                if ($DB->record_exists($table, $params)) {
+                    // This test is for graphs that may have clustering data but,
+                    // may not, if the scheduled task has never run, only applies during
+                    // upgrade because common links were not done during initial clustering.
+                    continue;
+                }
+                foreach ($clusters as $cnum => $members) {
+                    if ($cnum === 'iteration') {
+                        continue;
+                    }
+
+                    // Build an array of links where each link contains an array of students.
+                    $links = [];
+                    foreach ($members as $m) {
+                        foreach ($studentlinks[$tid][$crdid][$m->studentid] as $k => $v) {
+
+                            if (!isset($links[$k])) {
+                                $links[$k] = [];
+                            }
+                            $links[$k][$m->studentid] = $v;
+                        }
+                    }
+
+                    // For links where there are the same number of students who have
+                    // the link as number of members in the cluster, it's a common link.
+                    foreach ($links as $l => $students) {
+                        if (count($members) == count($students)) {
+                            $min = PHP_INT_MAX;
+
+                            // Get the weight of the link.
+                            foreach ($students as $s => $w) {
+                                if ($min > $w) {
+                                    $min = $w;
+                                }
+                            }
+
+                            $commondata[] = (object) array(
+                                'courseid' => $cid,
+                                'userid' => $tid,
+                                'coordsid' => $crdid,
+                                'clusterid' => $clrid,
+                                'iteration' => $iteration,
+                                'clusternum' => $cnum,
+                                'link' => $l,
+                                'weight' => $min
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+    $DB->insert_records($table, $commondata);
+}
+
+/**
+ * Called to get the LSA graph links, if any.
+ *
+ * @param array $params For the DB query.
+ */
+function block_behaviour_get_lsa_links($params) {
+    global $DB;
+
+    $lsalinks = $DB->get_records('block_behaviour_lsa_links', $params, 'id');
+    $links = [];
+
+    if (count($lsalinks) == 0) {
+        return $links;
+    }
+
+    // Build the links for the graph.
+    foreach ($lsalinks as $link) {
+
+        $key = $link->modid1 . '_' . $link->modid2;
+
+        if (isset($links[$key])) {
+            $links[$key]['value'] += $link->value;
+            $links[$key]['frequency'] += $link->frequency;
+
+        } else {
+            $links[$key] = [
+                'value' => $link->value,
+                'frequency' => $link->frequency,
+                'source' => $link->modid1,
+                'target' => $link->modid2,
+                'students' => $link->studentids,
+            ];
+        }
+    }
+    unset($link);
+
+    // Links need to be in a regular array.
+    $newlinks = [];
+    foreach ($links as $link) {
+        $newlinks[] = $link;
+    }
+
+    return $newlinks;
+}
+
+/**
+ * Called to get the student responses to a survey.
+ *
+ * @param int $courseid The course ID.
+ * @param int $surveyid The survey ID.
+ * @return array
+ */
+function block_behaviour_get_student_survey_responses($courseid, $surveyid) {
+    global $DB;
+
+    $params = [
+        'courseid' => $courseid,
+        'surveyid' => $surveyid,
+    ];
+    $responses = $DB->get_records('block_behaviour_survey_rsps', $params, 'studentid, attempt DESC, qorder');
+
+    if (count($responses) == 0) {
+        return [];
+    }
+    $studentresponses = [];
+    $currentstudent = $responses[key($responses)]->studentid;
+
+    $survey = [];
+    foreach ($responses as $r) {
+        if ($r->studentid != $currentstudent) {
+            $studentresponses[$currentstudent] = $survey;
+            $currentstudent = $r->studentid;
+            $survey = [];
+        }
+        $survey[] = $r;
+    }
+    $studentresponses[$currentstudent] = $survey;
+
+    return $studentresponses;
+}
+
+/**
+ * Called to get the learning style from the ILS survey in Behaviour Analytics.
+ *
+ * @param int $courseid The course ID.
+ * @param int $surveyid The survey ID.
+ * @param boolean $scored Should the surveys be scored or not?
+ * @return array
+ */
+function block_behaviour_get_ls_data($courseid, $surveyid, $scored) {
+
+    $lsdata = [];
+    $studentresponses = block_behaviour_get_student_survey_responses($courseid, $surveyid);
+
+    foreach ($studentresponses as $cs => $sr) {
+
+        $active = get_string('active', 'block_behaviour');
+        $reflective = get_string('reflective', 'block_behaviour');
+        $sensing = get_string('sensing', 'block_behaviour');
+        $intuitive = get_string('intuitive', 'block_behaviour');
+        $visual = get_string('visual', 'block_behaviour');
+        $verbal = get_string('verbal', 'block_behaviour');
+        $sequential = get_string('sequential', 'block_behaviour');
+        $global = get_string('global', 'block_behaviour');
+
+        $lsc = array(
+            $active => 0,
+            $reflective => 0,
+            $sensing => 0,
+            $intuitive => 0,
+            $visual => 0,
+            $verbal => 0,
+            $sequential => 0,
+            $global => 0,
+        );
+        $n = 0;
+        $m = 0;
+
+        // Calculate the survey results.
+        unset($r);
+        foreach ($sr as $r) {
+
+            if ($n === 0) {
+                if (intval($r->response)) {
+                    $lsc[$reflective] += 1;
+                } else {
+                    $lsc[$active] += 1;
+                }
+
+            } else if ($n === 1) {
+                if (intval($r->response)) {
+                    $lsc[$intuitive] += 1;
+                } else {
+                    $lsc[$sensing] += 1;
+                }
+
+            } else if ($n === 2) {
+                if (intval($r->response)) {
+                    $lsc[$verbal] += 1;
+                } else {
+                    $lsc[$visual] += 1;
+                }
+
+            } else if ($n === 3) {
+                if (intval($r->response)) {
+                    $lsc[$global] += 1;
+                } else {
+                    $lsc[$sequential] += 1;
+                }
+            }
+            if ($n === 3) {
+                $n = 0;
+            } else {
+                $n++;
+            }
+            if ($m++ >= 43) {
+                break;
+            }
+        }
+
+        // Determine the dominant category and value.
+        if ($scored) {
+            if ($lsc[$active] > $lsc[$reflective]) {
+                $lsc[$active] -= $lsc[$reflective];
+                $lsc[$reflective] = 0;
+            } else {
+                $lsc[$reflective] -= $lsc[$active];
+                $lsc[$active] = 0;
+            }
+
+            if ($lsc[$sensing] > $lsc[$intuitive]) {
+                $lsc[$sensing] -= $lsc[$intuitive];
+                $lsc[$intuitive] = 0;
+            } else {
+                $lsc[$intuitive] -= $lsc[$sensing];
+                $lsc[$sensing] = 0;
+            }
+
+            if ($lsc[$visual] > $lsc[$verbal]) {
+                $lsc[$visual] -= $lsc[$verbal];
+                $lsc[$verbal] = 0;
+            } else {
+                $lsc[$verbal] -= $lsc[$visual];
+                $lsc[$visual] = 0;
+            }
+
+            if ($lsc[$sequential] > $lsc[$global]) {
+                $lsc[$sequential] -= $lsc[$global];
+                $lsc[$global] = 0;
+            } else {
+                $lsc[$global] -= $lsc[$sequential];
+                $lsc[$sequential] = 0;
+            }
+        }
+
+        $lsdata[$cs] = $lsc;
+    }
+
+    return $lsdata;
+}
+
+/**
+ * Called to get the Big Five Inventory data.
+ *
+ * @param int $courseid The course ID.
+ * @param int $surveyid The survey ID.
+ * @return array
+ */
+function block_behaviour_get_bfi_data($courseid, $surveyid) {
+
+    $bfidata = [];
+    $studentresponses = block_behaviour_get_student_survey_responses($courseid, $surveyid);
+
+    foreach ($studentresponses as $cs => $sr) {
+
+        $extraversion = get_string('extraversion', 'block_behaviour');
+        $agreeableness = get_string('agreeable', 'block_behaviour');
+        $conscientiousness = get_string('conscientiousness', 'block_behaviour');
+        $neuroticism = get_string('neuroticism', 'block_behaviour');
+        $openness = get_string('openness', 'block_behaviour');
+
+        $bfi = array(
+            $extraversion => 0,
+            $agreeableness => 0,
+            $conscientiousness => 0,
+            $neuroticism => 0,
+            $openness => 0,
+        );
+
+        foreach ($sr as $r) {
+            switch ($r->qorder) {
+                case 1:
+                case 11:
+                case 16:
+                case 26:
+                case 36:
+                    $bfi[$extraversion] += $r->response + 1;
+                    break;
+                case 6:
+                case 21:
+                case 31:
+                    $bfi[$extraversion] += 6 - ($r->response + 1);
+                    break;
+                case 7:
+                case 17:
+                case 22:
+                case 32:
+                case 42:
+                    $bfi[$agreeableness] += $r->response + 1;
+                    break;
+                case 2:
+                case 12:
+                case 27:
+                case 37:
+                    $bfi[$agreeableness] += 6 - ($r->response + 1);
+                    break;
+                case 3:
+                case 13:
+                case 28:
+                case 33:
+                case 38:
+                    $bfi[$conscientiousness] += $r->response + 1;
+                    break;
+                case 8:
+                case 18:
+                case 23:
+                case 43:
+                    $bfi[$conscientiousness] += 6 - ($r->response + 1);
+                    break;
+                case 4:
+                case 14:
+                case 19:
+                case 29:
+                case 39:
+                    $bfi[$neuroticism] += $r->response + 1;
+                    break;
+                case 9:
+                case 24:
+                case 34:
+                    $bfi[$neuroticism] += 6 - ($r->response + 1);
+                    break;
+                case 5:
+                case 10:
+                case 15:
+                case 20:
+                case 25:
+                case 30:
+                case 40:
+                case 44:
+                    $bfi[$openness] += $r->response + 1;
+                    break;
+                case 35:
+                case 41:
+                    $bfi[$openness] += 6 - ($r->response + 1);
+                    break;
+            }
+        }
+
+        $bfi[$extraversion] = round($bfi[$extraversion] / 8, 2);
+        $bfi[$agreeableness] = round($bfi[$agreeableness] / 9, 2);
+        $bfi[$conscientiousness] = round($bfi[$conscientiousness] / 9, 2);
+        $bfi[$neuroticism] = round($bfi[$neuroticism] / 8, 2);
+        $bfi[$openness] = round($bfi[$openness] / 10, 2);
+
+        $bfidata[$cs] = $bfi;
+    }
+
+    return $bfidata;
+}
+
+/**
+ * Called to get the SUS score.
+ *
+ * @param int $courseid The course ID.
+ * @param int $surveyid The survey ID.
+ * @return float
+ */
+function block_behaviour_get_sus_score($courseid, $surveyid) {
+
+    $studentresponses = block_behaviour_get_student_survey_responses($courseid, $surveyid);
+    $students = count($studentresponses);
+
+    if (!$students) {
+        return -1;
+    }
+
+    $totalscore = 0;
+
+    foreach ($studentresponses as $cs => $sr) {
+        $studentscore = 0;
+
+        foreach ($sr as $r) {
+            switch ($r->qorder) {
+                case 1:
+                case 3:
+                case 5:
+                case 7:
+                case 9:
+                    $studentscore += $r->response;
+                    break;
+                case 2:
+                case 4:
+                case 6:
+                case 8:
+                case 10:
+                    $studentscore += 4 - $r->response;
+                    break;
+            }
+        }
+
+        $totalscore += $studentscore * 2.5;
+    }
+
+    return round($totalscore / $students, 2);
+}
+
+/**
+ * Called to get the PSG log details.
+ *
+ * @param int $courseid The course ID.
+ * @param boolean $shownames To show student names or sequential IDs?
+ * @return array
+ */
+function block_behaviour_get_psg_log_details($courseid, $shownames) {
+    global $DB;
+
+    $table = new html_table();
+    $table->caption = get_string('psgdetailcaption', 'block_behaviour');
+    $table->head = [
+        get_string('student', 'block_behaviour'),
+        get_string('date', 'block_behaviour'),
+        get_string('current', 'block_behaviour'),
+        get_string('diff', 'block_behaviour'),
+    ];
+    $csv = $table->head[0] . ',' . $table->head[1] . ',' . $table->head[2] . ',' . $table->head[3] . PHP_EOL;
+
+    $data = [];
+    $seqid = 0;
+    $currentsid = 0;
+    $last = 0;
+
+    $records = $DB->get_records('block_behaviour_psg_log', ['courseid' => $courseid], 'userid, time');
+    foreach ($records as $r) {
+
+        $row = [];
+        if ($currentsid != $r->userid) {
+
+            $name = $seqid++;
+            if ($shownames) {
+                $record = $DB->get_record('user', ['id' => $r->userid]);
+                $name = $record->firstname . ' ' . $record->lastname;
+            }
             $row[] = new html_table_cell(html_writer::div($name, ''));
-            $csv .= $name . ',';
-            $currentattempt = 0;
+            $csv .= '"' . $name . '",';
+
+            $currentsid = $r->userid;
+            $last = $r->time;
 
         } else {
             $row[] = new html_table_cell(html_writer::div('', ''));
             $csv .= ',';
         }
 
-        // Question ID and text.
-        if (!isset($questionmap[$r->questionid])) {
-            $qrec = $DB->get_record('block_behaviour_survey_qs', ['id' => $r->questionid]);
-            $questionmap[$r->questionid] = $qrec->qtext;
-            $optionsmap[$r->questionid] = [];
-        }
-        $questiontext = $questionmap[$r->questionid];
-        $row[] = new html_table_cell(html_writer::div($r->qorder . ' ' . $questiontext, ''));
-        $csv .= $r->qorder . ' ' . $questiontext . ',';
+        $datestr = block_behaviour_get_nice_time($r->time);
+        $row[] = new html_table_cell(html_writer::div($datestr, ''));
+        $csv .= '"' . $datestr . '",';
 
-        // Student response to the question.
-        if (!isset($optionsmap[$r->questionid][$r->response])) {
-            if ($qrec->qtype == 'likert') {
-                $optionsmap[$r->questionid][$r->response] = $likertscale[$r->response];
-            } else {
-                $params = ['question' => $r->questionid, 'ordering' => $r->response];
-                $optionsmap[$r->questionid][$r->response] = $DB->get_field('block_behaviour_survey_opts', 'text', $params);
-            }
+        $onoff = $r->psgon ? get_string('on', 'block_behaviour') : get_string('off', 'block_behaviour');
+        $row[] = new html_table_cell(html_writer::div($onoff, ''));
+        $csv .= '"' . $onoff . '",';
+
+        $diff = $r->time - $last;
+        $last = $r->time;
+
+        if ($diff < 60) {
+            $diff = $diff . 's';
+        } else if ($diff < 3600) {
+            $diff = round(($diff / 60), 2) . 'm';
+        } else if ($diff < 86400) {
+            $diff = round(($diff / 3600), 2) . 'h';
+        } else {
+            $diff = round(($diff / 86400), 2) . 'd';
         }
-        $optiontext = $optionsmap[$r->questionid][$r->response];
-        $row[] = new html_table_cell(html_writer::div($r->response . ' ' .$optiontext, ''));
-        $csv .= $r->response . ' ' . $optiontext . PHP_EOL;
+
+        $row[] = new html_table_cell(html_writer::div($diff, ''));
+        $csv .= $diff . PHP_EOL;
         $data[] = $row;
-        $row = [];
     }
 
     $table->data = $data;
     return [ $table, $csv ];
+}
+
+/**
+ * Called to get onvert UNIX timestamp to human readable date.
+ *
+ * @param int $time UNIX timestamp.
+ * @return string
+ */
+function block_behaviour_get_nice_time($time) {
+
+    if ($time == 0) {
+        return get_string('noend', 'block_behaviour');
+    }
+
+    $date = getdate($time);
+
+    $hrs = $date['hours'] < 10 ? '0'.$date['hours'] : $date['hours'];
+    $mins = $date['minutes'] < 10 ? '0'.$date['minutes'] : $date['minutes'];
+    $secs = $date['seconds'] < 10 ? '0'.$date['seconds'] : $date['seconds'];
+
+    return $date['month'].' '.$date['mday'].', '.$date['year'].' '.$hrs.':'.$mins.':'.$secs;
+}
+
+/**
+ * Called to get the PSG log summary.
+ *
+ * @param stdClass $course The course.
+ * @param boolean $shownames Show student names or sequential ID?
+ * @return array
+ */
+function block_behaviour_get_psg_log_summary(&$course, $shownames) {
+    global $DB;
+
+    $table = new html_table();
+    $table->caption = get_string('psgsummarycaption', 'block_behaviour');
+    $head = [
+        get_string('student', 'block_behaviour'),
+        get_string('startdate', 'block_behaviour'),
+        get_string('enddate', 'block_behaviour'),
+        get_string('numchanges', 'block_behaviour'),
+        get_string('current', 'block_behaviour'),
+    ];
+    $table->head = $head;
+    $csv = $head[0] . ',' . $head[1] . ',' . $head[2] . ',' . $head[3] . ',' . $head[4] . PHP_EOL;
+
+    $data = [];
+    $seqid = 0;
+    $currentsid = 0;
+    $totals = [];
+    $records = $DB->get_records('block_behaviour_psg_log', ['courseid' => $course->id], 'userid, time');
+
+    foreach ($records as $r) {
+        if ($currentsid != $r->userid) {
+            $name = $seqid++;
+
+            if ($shownames) {
+                $record = $DB->get_record('user', ['id' => $r->userid]);
+                $name = $record->firstname . ' ' . $record->lastname;
+            }
+
+            $totals[$name] = [
+                'total' => 0,
+                'last' => -1,
+            ];
+            $currentsid = $r->userid;
+        }
+
+        $totals[$name]['total'] += 1;
+        $totals[$name]['last'] = intval($r->psgon);
+    }
+
+    unset($name);
+    foreach ($totals as $name => $total) {
+
+        $onoff = $total['last'] === 1 ? get_string('on', 'block_behaviour') : get_string('off', 'block_behaviour');
+        $start = block_behaviour_get_nice_time($course->startdate);
+        $end = block_behaviour_get_nice_time($course->enddate);
+
+        $row = [];
+        $row[] = new html_table_cell(html_writer::div($name, ''));
+        $row[] = new html_table_cell(html_writer::div($start, ''));
+        $row[] = new html_table_cell(html_writer::div($end, ''));
+        $row[] = new html_table_cell(html_writer::div($total['total'], ''));
+        $row[] = new html_table_cell(html_writer::div($onoff, ''));
+
+        $csv .= '"' . $name . '","' . $start . '","' . $end . '","' . $total['total'] . '","' . $onoff . '"' . PHP_EOL;
+
+        $data[] = $row;
+    }
+
+    $table->data = $data;
+    return [ $table, $csv ];
+}
+
+/**
+ * Called to get the learning styles of learning objects.
+ *
+ * @param stdClass $course The course.
+ * @param boolean $shownames Show student names or sequential ID?
+ * @return array
+ */
+function block_behaviour_get_ls_of_lo(&$course, $shownames) {
+    global $DB;
+
+    // Get the course module information.
+    $modinfo = get_fast_modinfo($course);
+    $modules = [];
+
+    foreach ($modinfo->sections as $sectionnum => $section) {
+
+        foreach ($section as $cmid) {
+            $cm = $modinfo->cms[$cmid];
+
+            // Only want clickable modules.
+            if (!$cm->has_view() || !$cm->uservisible) {
+                continue;
+            }
+
+            $modules[$cmid] = array(
+                'type' => get_string('modulename', $cm->modname),
+                'name' => $cm->name,
+                'sect' => $sectionnum
+            );
+        }
+    }
+
+    $table = new html_table();
+    $table->caption = get_string('lsoflocaption', 'block_behaviour');
+    $head = [
+        get_string('lo', 'block_behaviour'),
+        get_string('type', 'block_behaviour'),
+        get_string('active', 'block_behaviour'),
+        get_string('reflective', 'block_behaviour'),
+        get_string('sensing', 'block_behaviour'),
+        get_string('intuitive', 'block_behaviour'),
+        get_string('visual', 'block_behaviour'),
+        get_string('verbal', 'block_behaviour'),
+        get_string('sequential', 'block_behaviour'),
+        get_string('global', 'block_behaviour'),
+    ];
+    $table->head = $head;
+
+    $csv = '';
+    for ($h = 0; $h < count($head) - 1; $h++) {
+        $csv .= $head[$h] . ',';
+    }
+    $csv .= $head[count($head) - 1] . PHP_EOL;
+
+    // Determine what each students LS score is for each LO, ILS.
+    $ilsstudents = [];
+    $records = $DB->get_records('format_psg_student_module_ls', ['courseid' => $course->id, 'scoretype' => 0]);
+    foreach ($records as $r) {
+        if (!isset($ilsstudents[$r->moduleid])) {
+            $ilsstudents[$r->moduleid] = [$r->userid => $r->score];
+        } else {
+            $ilsstudents[$r->moduleid][$r->userid] = $r->score;
+        }
+    }
+    unset($r);
+
+    // Determine what each students LS score is for each LO, common links.
+    $cmnlinkstudents = [];
+    $records = $DB->get_records('format_psg_student_module_ls', ['courseid' => $course->id, 'scoretype' => 1]);
+    foreach ($records as $r) {
+        if (!isset($cmnlinkstudents[$r->moduleid])) {
+            $cmnlinkstudents[$r->moduleid] = [$r->userid => $r->score];
+        } else {
+            $cmnlinkstudents[$r->moduleid][$r->userid] = $r->score;
+        }
+    }
+    unset($r);
+
+    $data = [];
+    $records = $DB->get_records('format_psg_module_ls', ['courseid' => $course->id]);
+
+    foreach ($records as $r) {
+        $arr = explode(',', $r->lsc);
+
+        $js = 'var div = document.getElementById("students-' . $r->moduleid . '"); ';
+        $js .= 'if (div.style.display == "block") { div.style.display = "none"; } ';
+        $js .= 'else { div.style.display = "block"; }';
+        $params = [
+            'style' => 'cursor: pointer;',
+            'onclick' => $js,
+        ];
+
+        // Learning object learning style.
+        $row = [];
+        $row[] = new html_table_cell(html_writer::div($modules[$r->moduleid]['name'], '', $params));
+        $row[] = new html_table_cell(html_writer::div($modules[$r->moduleid]['type'], '', $params));
+        $csv .= '"' . $modules[$r->moduleid]['name'] . '","' . $modules[$r->moduleid]['type'] . '",';
+
+        foreach ($arr as $a) {
+            $row[] = new html_table_cell(html_writer::div($a, ''));
+            $csv .= $a . ',';
+        }
+
+        $csv .= PHP_EOL;
+        $data[] = $row;
+
+        $row = [];
+        $students = '';
+        $seqid = 0;
+        $names = [];
+
+        // Students LS scores for this LO, ILS.
+        if (isset($ilsstudents[$r->moduleid])) {
+            foreach ($ilsstudents[$r->moduleid] as $sid => $score) {
+                $name = $seqid++;
+
+                if ($shownames) {
+                    $record = $DB->get_record('user', ['id' => $sid]);
+
+                    if ($record) {
+                        $name = $record->firstname . ' ' . $record->lastname;
+                    }
+                }
+                $students .= $name . ': ' . $score . ', ';
+                $names[$sid] = $name;
+            }
+            unset($sid);
+            unset($score);
+        }
+        $out = get_string('ils', 'block_behaviour') . ' -- ' . substr($students, 0, -2) . '<br>';
+        $students = '';
+
+        // Students LS scores for this LO, common links.
+        if (isset($cmnlinkstudents[$r->moduleid])) {
+            foreach ($cmnlinkstudents[$r->moduleid] as $sid => $score) {
+
+                if (isset($names[$sid])) {
+                    $name = $names[$sid];
+
+                } else if ($shownames) {
+                    $record = $DB->get_record('user', ['id' => $sid]);
+
+                    if ($record) {
+                        $name = $record->firstname . ' ' . $record->lastname;
+                    } else {
+                        $name = $seqid++;
+                    }
+                } else {
+                    $name = $seqid++;
+                }
+                $students .= $name . ': ' . $score . ', ';
+            }
+        }
+        $out .= get_string('commonlinks', 'block_behaviour') . ' -- ' . substr($students, 0, -2);
+
+        $params = [
+            'id' => 'students-' . $r->moduleid,
+            'style' => 'display: none;',
+        ];
+        $cell = new html_table_cell(html_writer::div($out, '', $params));
+        $cell->colspan = 10;
+        $row[] = $cell;
+        $csv .= '"' . str_replace('<br>', '"' . PHP_EOL . '"', $out) . '"' . PHP_EOL;
+
+        $data[] = $row;
+    }
+
+    $table->data = $data;
+    return [ $table, $csv, $modules ];
 }
 
 /**
@@ -1782,21 +2956,86 @@ class block_behaviour_student_survey_form extends moodleform {
             $mform->addElement('html', html_writer::tag('h4', get_string('bfi1heading', 'block_behaviour')));
         }
 
-        $likert = get_string('likertscale', 'block_behaviour');
-        $likert = explode(',', $likert);
-
         foreach ($this->questions as $q) {
             $mform->addElement('static', 'qtext-' . $q->id, $q->ordering . '  ' . $q->qtext);
-            $radios = [];
-            $labels = $q->qtype === 'likert' ? $likert : $this->qoptions[$q->id];
-            foreach ($labels as $k => $v) {
-                $radios[] = $mform->createElement('radio', 'qoption-' . $q->id, '', $v, $k,
-                ['id' => 'qoption-' . $q->id . '-' . $k]);
+            list($labels, $optiontype) = $this->get_labels($q);
+
+            if ($optiontype == 'radio') {
+                $radios = [];
+                foreach ($labels as $k => $v) {
+                    $radios[] = $mform->createElement('radio', 'qoption-' . $q->id, '', $v, $k);
+                }
+                $mform->addGroup($radios, 'options-' . $q->id);
+
+            } else if ($optiontype == 'checkbox') {
+                $boxes = [];
+                foreach ($labels as $k => $v) {
+                    $mform->addElement('advcheckbox', 'qoption-' . $q->id . '-' . $k, '', $v, ['group' => $q->id]);
+                }
+
+            } else if ($optiontype == 'text') {
+                $mform->addElement('textarea', 'qoption-' . $q->id, '');
             }
-            $mform->addGroup($radios, 'options-' . $q->id);
         }
 
         $this->add_action_buttons();
+    }
+
+    /**
+     * Called to get the labels for a question.
+     *
+     * @param stdClass $q The question.
+     * @return array
+     */
+    private function get_labels($q) {
+
+        $labels = [];
+        $optiontype = 'radio';
+
+        if ($q->qtype == 'binary' || $q->qtype == 'custom') {
+            $labels = $this->qoptions[$q->id];
+
+        } else if ($q->qtype == 'multiple') {
+            $labels = $this->qoptions[$q->id];
+            $optiontype = 'checkbox';
+
+        } else if ($q->qtype == 'likert') {
+            $labels = get_string('likertscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'yn') {
+            $labels = get_string('ynscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'tf') {
+            $labels = get_string('tfscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'gap') {
+            $labels = get_string('gapscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'and') {
+            $labels = get_string('andscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'lnd') {
+            $labels = get_string('lndscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'egapt') {
+            $labels = get_string('egaptscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'aossn') {
+            $labels = get_string('aossnscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'slnds') {
+            $labels = get_string('slndsscale', 'block_behaviour');
+
+        } else if ($q->qtype == 'open') {
+            $labels = '';
+            $optiontype = 'text';
+        }
+
+        if (!is_array($labels) && $optiontype != 'text') {
+            $labels = explode(',', $labels);
+        }
+
+        return [ $labels, $optiontype ];
     }
 }
 
@@ -1834,6 +3073,7 @@ class block_behaviour_summary_form extends moodleform {
      * Definition function.
      */
     public function definition() {
+        global $DB;
 
         $mform = $this->_form; // Don't forget the underscore!
 
@@ -1851,13 +3091,16 @@ class block_behaviour_summary_form extends moodleform {
             ' _ ' . get_string('lordgraph', 'block_behaviour');
         $mform->addElement('html', '<p style="text-align: center">' . $str . '</p>');
 
+        $record = $DB->get_record('block', ['name' => 'lord']);
+        $lordinstalled = $record ? true : false;
+
         foreach ($this->data as $k1 => $v1) { // Userid.
             foreach ($v1 as $k2 => $v2) { // Coordsid.
                 foreach ($v2 as $k3 => $v3) { // Clusterid.
 
                     // If no convergence, then no summary to show.
                     if (isset($this->data[$k1][$k2][$k3][-1])) {
-                        $islord = block_behaviour_get_lord_graph_status($this->cid, $k2);
+                        $islord = $lordinstalled ? block_behaviour_get_lord_graph_status($this->cid, $k2) : '';
                         $mform->addElement('advcheckbox', 'chk' . $k1 . '_' . $k2, $k1 . ' _ ' . $k2 . ' _ ' . $islord);
                         break;
                     }
@@ -2587,7 +3830,7 @@ class block_behaviour_complete_exporter {
                 'sect'    => $module['sect'],
                 'xcoord'  => $r->xcoord,
                 'ycoord'  => $r->ycoord,
-                'visible' => $r->visible
+                'visible' => intval($r->visible),
             );
         }
 
@@ -3067,7 +4310,7 @@ class block_behaviour_complete_exporter {
                 'sect'    => $module['sect'],
                 'xcoord'  => $r->xcoord,
                 'ycoord'  => $r->ycoord,
-                'visible' => $r->visible
+                'visible' => intval($r->visible),
             );
         }
 
@@ -3255,9 +4498,13 @@ class block_behaviour_delete_form extends moodleform {
 
         $mform = &$this->_form;
 
-        // Course id.
+        // Course id and other params.
         $mform->addElement('hidden', 'id');
         $mform->setType('id', PARAM_INT);
+        $mform->addElement('hidden', 'names');
+        $mform->setType('names', PARAM_INT);
+        $mform->addElement('hidden', 'uselsa');
+        $mform->setType('uselsa', PARAM_INT);
 
         $mform->addElement('header', 'delete_header', get_string('deleteall', 'block_behaviour'));
 

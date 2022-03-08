@@ -45,6 +45,9 @@ if (!block_behaviour_is_installed($course->id)) {
     die();
 }
 
+// Decode any ampersands that may be present.
+$data['title'] = str_replace('%amp;', '&', $data['title']);
+
 $id = $DB->insert_record('block_behaviour_surveys', (object) array(
     'title' => $data['title']
 ));

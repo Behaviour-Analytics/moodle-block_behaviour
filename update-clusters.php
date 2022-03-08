@@ -98,4 +98,8 @@ foreach ($clusterdata->members as $cluster) {
 
 $DB->insert_records('block_behaviour_members', $data);
 
+if ($clusterdata->iteration < 0) {
+    block_behaviour_update_common_graph($courseid, $userid, $clusterdata->coordsid, $clusterdata->clusterId, false);
+}
+
 die('Clusters updated at '.time());

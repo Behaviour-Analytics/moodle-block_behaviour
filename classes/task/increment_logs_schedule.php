@@ -300,7 +300,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
 
                     self::dbug($value->moduleid . ' ' . $value->visible);
 
-                    if ($value->visible) {
+                    if (intval($value->visible)) {
                         $modcoords[$tid->userid][$coordid->coordsid][$value->moduleid] = array(
                             'x' => $value->xcoord,
                             'y' => $value->ycoord
@@ -860,7 +860,7 @@ class increment_logs_schedule extends \core\task\scheduled_task {
     private function update_common_graph($cid, &$modcoords, &$data) {
         global $DB;
 
-        // Get the logs for this course and re-index.
+        // Get the logs for this course and re-index so they start at 0.
         $records = $DB->get_records('block_behaviour_imported', ['courseid' => $cid], 'userid, time');
         $logs = [];
         foreach ($records as $r) {

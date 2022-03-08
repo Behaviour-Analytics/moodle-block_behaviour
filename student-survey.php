@@ -55,34 +55,50 @@ if ($mform->is_cancelled()) {
     die();
 
 } else if ($fromform = $mform->get_data()) {
-    // Figure out if this student has taken this survey in this course before.
-    $sql = 'SELECT id, MAX(attempt) as attempt
-              FROM {block_behaviour_survey_rsps}
-             WHERE courseid = :cid
-               AND studentid = :stid';
-    $params = ['cid' => $course->id, 'stid' => $USER->id];
-    $record = $DB->get_record_sql($sql, $params);
 
-    $attempt = 1;
-    if ($record->attempt) {
-        $attempt = $record->attempt + 1;
+    // Check for previous responses.
+    // Could happen if student clicks the back button after submit.
+    $params = [
+        'courseid' => $course->id,
+        'studentid' => $USER->id,
+        'surveyid' => $sid,
+    ];
+    $previous = $DB->get_records('block_behaviour_survey_rsps', $params);
+    if (count($previous) == 0) {
+
+        // Insert the question data into the DB.
+        $data = [];
+        foreach ($questions as $q) {
+            $k1 = 'options-' . $q->id;
+            $k2 = 'qoption-' . $q->id;
+            $response = '';
+
+            if ($q->qtype == 'open') {
+                $response = $fromform->{$k2};
+
+            } else if ($q->qtype == 'multiple') {
+                $n = 0;
+                while (isset($fromform->{'qoption-' . $q->id . '-' . $n})) {
+                    $response .= $fromform->{'qoption-' . $q->id . '-' . $n} . ',';
+                    $n++;
+                }
+
+            } else {
+                $response = $fromform->{$k1}[$k2];
+            }
+
+            $data[] = (object) array(
+                'courseid' => $course->id,
+                'studentid' => $USER->id,
+                'surveyid' => $sid,
+                'attempt' => 1,
+                'questionid' => $q->id,
+                'qorder' => $q->ordering,
+                'response' => $response,
+            );
+        }
+        $DB->insert_records('block_behaviour_survey_rsps', $data);
     }
-    // Insert the question data into the DB.
-    $data = [];
-    foreach ($questions as $q) {
-        $k1 = 'options-' . $q->id;
-        $k2 = 'qoption-' . $q->id;
-        $data[] = (object) array(
-            'courseid' => $course->id,
-            'studentid' => $USER->id,
-            'surveyid' => $sid,
-            'attempt' => $attempt,
-            'questionid' => $q->id,
-            'qorder' => $q->ordering,
-            'response' => $fromform->{$k1}[$k2],
-        );
-    }
-    $DB->insert_records('block_behaviour_survey_rsps', $data);
 
     redirect($url);
     die();

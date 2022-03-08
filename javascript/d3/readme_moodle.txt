@@ -8,4 +8,4 @@ download the code from https://d3js.org and place it in this directory,
 overwriting the current version. Then copy the d3.js file into the amd/src
 directory. The d3.min.js file can be copied into the amd/build directory or
 grunt can be run to minify the amd/src file. Finally, update the
-lib/thirdpartylibs.xml file with the latest version number.
+thirdpartylibs.xml file with the latest version number.

@@ -28,23 +28,40 @@ require_once(__DIR__.'/locallib.php');
 
 defined('MOODLE_INTERNAL') || die();
 
-$id = required_param('id', PARAM_INT);
+$id = optional_param('id', 0, PARAM_INT);
+$context = null;
+$linkparams = [];
 
-$course = get_course($id);
-require_login($course);
+if ($id > 0) {
 
-$context = context_course::instance($course->id);
-require_capability('block/behaviour:view', $context);
+    $shownames = required_param('names', PARAM_INT);
+    $uselsa = required_param('uselsa', PARAM_INT);
 
-// Was script called with course id where plugin is not installed?
-if (!block_behaviour_is_installed($course->id)) {
+    $course = get_course($id);
+    require_login($course);
 
-    redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
-    die();
+    $context = context_course::instance($course->id);
+    require_capability('block/behaviour:view', $context);
+
+    // Was script called with course id where plugin is not installed?
+    if (!block_behaviour_is_installed($course->id)) {
+
+        redirect(new moodle_url('/course/view.php', array('id' => $course->id)));
+        die();
+    }
+
+    // Set up the page.
+    $linkparams = [
+        'id' => $course->id,
+        'names' => $shownames,
+        'uselsa' => $uselsa
+    ];
+
+} else { // Work around for when called from PSG settings.
+    $PAGE->set_context(context_system::instance($id));
 }
 
-// Set up the page.
-$PAGE->set_url('/blocks/behaviour/documentation.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/documentation.php', $linkparams);
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // Finish setting up page.
@@ -54,51 +71,58 @@ $PAGE->set_heading(get_string('title', 'block_behaviour') . ' ' . get_string('do
 // Output page.
 echo $OUTPUT->header();
 
-// Make the hyperlink menu.
-$cid = array('id' => $COURSE->id);
-
-echo html_writer::div(block_behaviour_get_nav_links(0), '');
-echo html_writer::div('<hr/>', '');
+if ($id > 0) {
+    echo html_writer::div(block_behaviour_get_nav_links($shownames, $uselsa), '');
+    echo html_writer::empty_tag('hr');
+}
 
 echo html_writer::tag('a', get_string('docswhatis', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#whatis', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#whatis', $linkparams)));
 echo html_writer::empty_tag('br');
 
 echo html_writer::tag('a', get_string('docshowview', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howview', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howview', $linkparams)));
 echo html_writer::empty_tag('br');
 
 echo html_writer::tag('a', get_string('docshowreplay', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howreplay', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howreplay', $linkparams)));
 echo html_writer::empty_tag('br');
 
 echo html_writer::tag('a', get_string('docshowconfig', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howconfig', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howconfig', $linkparams)));
 echo html_writer::empty_tag('br');
 
 echo html_writer::tag('a', get_string('docshowlord', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howlord', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howlord', $linkparams)));
 echo html_writer::empty_tag('br');
 
-if (has_capability('block/behaviour:export', $context)) {
+echo html_writer::tag('a', get_string('docshowlsa', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howlsa', $linkparams)));
+echo html_writer::empty_tag('br');
+
+echo html_writer::tag('a', get_string('docshowpsg', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howpsg', $linkparams)));
+echo html_writer::empty_tag('br');
+
+if ($context && has_capability('block/behaviour:export', $context)) {
     echo html_writer::tag('a', get_string('docshowset', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howset', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howset', $linkparams)));
     echo html_writer::empty_tag('br');
 
     echo html_writer::tag('a', get_string('docshowtask', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howtask', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howtask', $linkparams)));
     echo html_writer::empty_tag('br');
 
     echo html_writer::tag('a', get_string('docshowimport', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howimport', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howimport', $linkparams)));
     echo html_writer::empty_tag('br');
 
     echo html_writer::tag('a', get_string('docshowdelete', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdelete', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdelete', $linkparams)));
     echo html_writer::empty_tag('br');
 
     echo html_writer::tag('a', get_string('docshowdashboard', 'block_behaviour'), array(
-    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdashboard', $cid)));
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#howdashboard', $linkparams)));
     echo html_writer::empty_tag('br');
 }
 
@@ -154,7 +178,19 @@ echo html_writer::div(get_string('docslord2', 'block_behaviour'));
 echo html_writer::empty_tag('br');
 echo html_writer::empty_tag('br');
 
-if (has_capability('block/behaviour:export', $context)) {
+echo html_writer::div(get_string('docshowlsa', 'block_behaviour'), 'bigger', array('id' => 'howlsa'));
+echo html_writer::empty_tag('br');
+echo html_writer::div(get_string('docslsa1', 'block_behaviour'));
+echo html_writer::empty_tag('br');
+echo html_writer::empty_tag('br');
+
+echo html_writer::div(get_string('docshowpsg', 'block_behaviour'), 'bigger', array('id' => 'howpsg'));
+echo html_writer::empty_tag('br');
+echo html_writer::div(get_string('docspsg1', 'block_behaviour'));
+echo html_writer::empty_tag('br');
+echo html_writer::empty_tag('br');
+
+if ($context && has_capability('block/behaviour:export', $context)) {
 
     // Global settings.
     echo html_writer::div(get_string('docshowset', 'block_behaviour'), 'bigger', array('id' => 'howset'));

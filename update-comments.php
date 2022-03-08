@@ -51,6 +51,9 @@ if (!block_behaviour_is_installed($course->id)) {
 $userid = $USER->id;
 $remark = json_decode($remdata);
 
+// Decode any ampersands that may be present.
+$remark->remark = str_replace('%amp;', '&', $remark->remark);
+
 // Simple DB table insertion.
 $DB->insert_record('block_behaviour_comments', (object) array(
     'courseid'  => $courseid,

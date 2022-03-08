@@ -45,6 +45,9 @@ if (!block_behaviour_is_installed($course->id)) {
     die();
 }
 
+// Decode any ampersands that may be present.
+$data['qtext'] = str_replace('%amp;', '&', $data['qtext']);
+
 $params = array(
     'survey' => intval($data['surveyid']),
     'qtype' => $data['qtype'],
@@ -61,12 +64,12 @@ if (isset($data['questionid'])) {
 }
 
 $out = [];
-if ($data['qtype'] != 'likert') {
+if ($data['qtype'] == 'binary' || $data['qtype'] == 'custom' || $data['qtype'] == 'multiple') {
     foreach ($data['labels'] as $k => $v) {
         $out[] = (object) [
             'question' => $id,
             'ordering' => $k,
-            'text' => $v
+            'text' => str_replace('%amp;', '&', $v)
         ];
     }
 }

@@ -29,6 +29,8 @@ require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
+$shownames = required_param('names', PARAM_INT);
+$linkuselsa = required_param('uselsa', PARAM_INT);
 
 $course = get_course($id);
 require_login($course);
@@ -56,24 +58,8 @@ $legendwidth = 180;
 // Get modules and node positions.
 list($mods, $modids) = block_behaviour_get_course_info($course);
 
-// Get the user preferences, if exist.
-$params = array(
-    'courseid' => $course->id,
-    'userid' => $USER->id
-);
-$lord = $DB->get_record('block_behaviour_lord_options', $params);
-$links = [];
-
-// Get the graph data.
-if (get_config('block_behaviour', 'uselord') && $lord && $lord->uselord) {
-    list($coordsid, $scale, $nodes, $numnodes) =
-        block_behaviour_get_lord_scale_and_node_data(0, $USER->id, $course, $lord->usecustom);
-    $links = block_behaviour_get_lord_link_data($course->id, $coordsid);
-
-} else {
-    list($coordsid, $scale, $nodes, $numnodes) =
-        block_behaviour_get_scale_and_node_data(0, $USER->id, $course);
-}
+list($coordsid, $scale, $nodes, $numnodes, $links, $uselsa) =
+    block_behaviour_get_graph_data(0, $USER->id, $course, $mods, $modids);
 
 $gotallnodes = $numnodes == count($mods);
 
@@ -88,7 +74,6 @@ if ($gotallnodes) {
 }
 
 // If doing resource node configuration.
-
 $out = array(
     'logs'        => [],
     'users'       => [ array('id' => 0) ],
@@ -107,6 +92,7 @@ $out = array(
     'strings'     => block_behaviour_get_lang_strings(),
     'sesskey'     => sesskey(),
     'version36'   => $version36,
+    'uselsa'      => $uselsa,
     'coordsscript'   => (string) new moodle_url('/blocks/behaviour/update-coords.php'),
     'clustersscript' => (string) new moodle_url('/blocks/behaviour/update-clusters.php'),
     'commentsscript' => (string) new moodle_url('/blocks/behaviour/update-comments.php'),
@@ -139,13 +125,13 @@ if (get_config('block_behaviour', 'c_'.$course->id.'_p_'.$USER->id)) {
 
         } else { // Data is for different user.
 
-            list($cid, $scl, $nds, $numnds) =
-                block_behaviour_get_scale_and_node_data(0, $user->userid, $course);
+            list($cid, $scl, $nds, $numnds, $lnks, $uselsa) =
+                block_behaviour_get_graph_data(0, $user->userid, $course, $mods, $modids);
 
             $scales[$user->userid]  = $scl;
             $changes[$user->userid] = $cid;
             $graphs[$user->userid] = $nds;
-            $edges[$user->userid] = [];
+            $edges[$user->userid] = $lnks;
         }
 
         $modules[$user->userid] = $mods;
@@ -176,7 +162,11 @@ if (get_config('block_behaviour', 'c_'.$course->id.'_p_'.$USER->id)) {
 }
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/position.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/position.php', array(
+    'id' => $course->id,
+    'names' => $shownames,
+    'uselsa' => $linkuselsa
+));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // JavaScript.
@@ -191,6 +181,6 @@ $PAGE->set_heading($course->fullname);
 // Output page.
 echo $OUTPUT->header();
 
-echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, 0));
+echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames, $linkuselsa));
 
 echo $OUTPUT->footer();

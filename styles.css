@@ -58,7 +58,6 @@
     display: block;
 }
 
-
 /* from https://stackoverflow.com/questions/826782/how-to-disable-text-selection-highlighting */
 .path-blocks-behaviour .no-select-text {
     -webkit-touch-callout: none; /* iOS Safari */

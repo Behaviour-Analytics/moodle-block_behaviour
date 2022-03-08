@@ -63,6 +63,7 @@ $params = array(
 );
 $DB->delete_records('block_behaviour_man_clusters', $params);
 $DB->delete_records('block_behaviour_man_members', $params);
+$DB->delete_records('block_behaviour_man_cmn_link', $params);
 
 // Insert clustering run results into DB table.
 $data = [];
@@ -100,5 +101,8 @@ foreach ($clusterdata->members as $member) {
 }
 
 $DB->insert_records('block_behaviour_man_members', $data);
+
+// Update the common links data.
+block_behaviour_update_common_graph($courseid, $userid, $clusterdata->coordsid, $clusterdata->clusterId, true);
 
 die('Clusters updated at '.time());

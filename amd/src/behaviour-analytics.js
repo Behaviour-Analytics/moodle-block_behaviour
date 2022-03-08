@@ -24,7 +24,8 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
  */
 
-/* eslint max-depth: ["warn", 5] */
+/* eslint max-depth: ["warn", 6] */
+/* eslint complexity: ["warn", 21] */
 /* eslint-disable no-alert */
 
 (function(factory) {
@@ -44,7 +45,8 @@
             clustersScript, // Updates the clustering results and membership changes.
             commentsScript, // Updates the teacher comments about centroids.
             manualScript, // Updates manual clustering during replay.
-            deleteScript; // Deletes the selected clustering data.
+            deleteScript, // Deletes the selected clustering data.
+            predictionScript; // Updates the prediction analysis.
 
         // These variables get their values from the server data.
         var logs, // Array of all logs from the server.
@@ -163,7 +165,12 @@
             isResearcher; // Flag to show or not the clustering measures.
 
         var clickData, // The student click data.
-            useGeometricCentroids; // Flag to determine how to calculate centroids.
+            useGeometricCentroids, // Flag to determine how to calculate centroids.
+            predictionAnalysis; // ID of current prediction analysis.
+
+        var useLSA; // Flag to use or not the LSA generated graph.
+        var lsaTime; // The time in ms that the LSA graph gets for physics.
+        var commentTextBoxes; // List of user who have open comment text boxes.
 
         // Debugging.
         var debugCentroids, // Turn on/off centroid debugging.
@@ -221,6 +228,18 @@
             isResearcher = incoming.isresearcher;
             replayUserId = userId;
             originalReplayData = incoming.replaydata;
+            predictionScript = incoming.predictionscript;
+            useLSA = incoming.uselsa;
+
+            predictionAnalysis = null;
+            if (incoming.predictionanalysis) {
+                var arr = incoming.predictionanalysis.split('_');
+                predictionAnalysis = {
+                    userid: arr[0],
+                    coordsid: arr[1],
+                    clusterid: arr[2]
+                };
+            }
 
             // Get external packages.
             ddd = window.dataDrivenDocs;
@@ -249,13 +268,13 @@
             useDefaultConcave = false;
             concaveHullDistance = 220;
             hullOpacity = 0.15;
-            // A curveType = ddd.curveLinearClosed; // Good, angled corners.
-            curveType = ddd.curveCatmullRomClosed; // Good, rounded corners.
+            curveType = ddd.curveCatmullRomClosed;
 
             useGeometricCentroids = true;
 
             nodeBoxes = {};
             coordsData = {};
+            commentTextBoxes = {};
 
             modColours = {
                 'originalLinks': 'lightgrey', // Removed from colours[].
@@ -293,6 +312,7 @@
             height = window.innerHeight - sliderHeight - 90;
 
             nodeRadius = Math.min(width, height) < 450 ? 6 : 8;
+            lsaTime = 10;
 
             // Create map for anonymized id to real id.
             realUserIds = {};
@@ -300,8 +320,60 @@
                 realUserIds[u.id] = u.realId;
             });
 
-            // Init some other stuff.
             assignModuleColours();
+
+            if (useLSA) {
+                if (incoming.links.length > 0 && incoming.links[0].label) {
+                    // Rendering new LSA graph.
+                    lsaTime = 4000;
+                    presetNodes = {};
+                }
+
+                graphData = {
+                    nodes: incoming.nodecoords,
+                    links: incoming.links,
+                    edges: {},
+                    maxSession: 0
+                };
+
+                // Set up the links.
+                graphData.links.forEach(function(link) {
+                    link.source = graphData.nodes[link.source];
+                    link.target = graphData.nodes[link.target];
+                    link.colour = modColours.originalLinks;
+                });
+
+                // Set up the nodes.
+                var nodes = [];
+                var keys = Object.keys(graphData.nodes);
+                for (var i = 0; i < keys.length; i++) {
+
+                    // Might have data for a module that has been removed.
+                    if (!graphData.nodes[keys[i]].entype) {
+                        continue;
+                    }
+                    nodes[i] = graphData.nodes[keys[i]];
+                    nodes[i].colour = modColours[nodes[i].entype];
+                }
+                graphData.nodes = nodes;
+
+                if (positioning) {
+                    initPositioning();
+
+                } else {
+                    setTimeout(function() {
+                        makeStudentLinks();
+                        var h = makeClusterButton();
+                        makeGroupMenu();
+                        makeStudentMenu(h, true);
+                        makeTimeSlider();
+                    }, lsaTime + 100);
+
+                    doLSAGraph();
+                }
+                return;
+            }
+
             getData();
 
             if (replaying) {
@@ -310,6 +382,79 @@
                 initPositioning();
             } else {
                 initGraphing();
+            }
+        }
+
+        /**
+         * Function to make a LSA graph.
+         */
+        function doLSAGraph() {
+
+            var xofs = width / 2.0;
+            var yofs = height / 2.0;
+
+            coordsData.originalx = xofs;
+            coordsData.originaly = yofs;
+
+            var nodes = graphData.nodes;
+            var links = graphData.links;
+
+            var linkForce = ddd.forceLink(links)
+                .distance(function(d) {
+                    return (1.0 / d.value) * 500;
+                });
+
+            // The actual graph.
+            graph = ddd.select('#graph')
+                .append('svg')
+                .attr('width', width)
+                .attr('height', height);
+
+            simulation = ddd.forceSimulation(nodes)
+                .force("link", linkForce)
+                .force("charge", ddd.forceManyBody().strength(-250))
+                .force("collide", ddd.forceCollide().radius(30))
+                .force("center", ddd.forceCenter(width / 2, height / 2))
+                .force('x', ddd.forceX())
+                .force('y', ddd.forceY());
+
+            // The nodes.
+            graphNodes = graph.selectAll(".node")
+                .data(nodes)
+                .enter().append("circle")
+                .attr('class', 'node')
+                .attr("r", nodeRadius)
+                .style('display', function(d) {
+                    return d.visible ? 'block' : 'none';
+                })
+                .on('mouseover', mouseover)
+                .on('mouseout', mouseout);
+
+            // The links.
+            graphLinks = graph.selectAll(".link")
+                .data(links)
+                .enter().append("line")
+                .attr("class", "link")
+                .style('stroke', modColours.originalLinks)
+                .style("stroke-width", function(d) {
+                    return (d.value / 3) + 'px';
+                });
+
+            if (links.length > 0 && links[0].label) {
+                // Rendering new LSA graph.
+                simulation.on('tick', tick2);
+                setTimeout(function() {
+                    simulation.stop();
+                    sendCoordsToServer(links);
+                    coordsData.distance = coordsScale;
+                }, lsaTime);
+
+            } else {
+                // Graph has been rendered before.
+                simulation.on('tick', tick1);
+                setTimeout(function() {
+                    simulation.stop();
+                }, 100);
             }
         }
 
@@ -402,9 +547,9 @@
 
                 if (presetNodes[m.id]) {
                     // Ensure group node visible as well, for new nodes.
-                    vis = presetNodes[m.id].visible == 1 &&
-                        presetNodes['g' + m.sect].visible == 1 ? true : false;
-                    if (presetNodes[m.id].visible == 1 && !vis) {
+                    vis = presetNodes[m.id].visible &&
+                        presetNodes['g' + m.sect].visible ? 1 : 0;
+                    if (presetNodes[m.id].visible && !vis) {
                         presetNodes[m.id].visible = 0;
                     }
                     xc = presetNodes[m.id].xcoord;
@@ -412,7 +557,7 @@
 
                 } else if (presetNodes['g' + m.sect]) {
                     // New resource in course, but no node data.
-                    vis = presetNodes['g' + m.sect].visible == 1 &&
+                    vis = presetNodes['g' + m.sect].visible &&
                         userId == allsKey ? true : false;
                 }
 
@@ -432,7 +577,7 @@
                 if (!ob[m.sect]) {
                     if (presetNodes['g' + m.sect]) {
 
-                        vis = presetNodes['g' + m.sect].visible == 1 ? true : false;
+                        vis = presetNodes['g' + m.sect].visible ? 1 : 0;
                         xc = presetNodes['g' + m.sect].xcoord;
                         yc = presetNodes['g' + m.sect].ycoord;
                     }
@@ -474,7 +619,7 @@
                 group:   -1,
                 type:    'grouping',
                 colour:  modColours.grouping,
-                visible: true,
+                visible: 1,
                 xcoord:  xc,
                 ycoord:  yc
             };
@@ -516,7 +661,7 @@
                 if (!originalPositioning) {
                     for (var n in data.nodes) {
                         if (isNaN(data.nodes[n].id)) {
-                            data.nodes[n].visible = false;
+                            data.nodes[n].visible = 0;
                         }
                     }
                 }
@@ -552,8 +697,7 @@
                     data.maxSession = data.maxSession < m ? m : data.maxSession;
                     m = 0; n = 0;
                 }
-
-                if (presetNodes[logs[i].moduleId] && presetNodes[logs[i].moduleId].visible == 1) {
+                if (presetNodes[logs[i].moduleId] && presetNodes[logs[i].moduleId].visible) {
                     clickData[logs[i].userId][n++] = logs[i].moduleId;
                 }
 
@@ -662,6 +806,7 @@
 
             // Trying to graph and cluster without configuring nodes first, give default.
             if (!gotAllNodes || Object.keys(presetNodes).length == 0) {
+
                 initGraph(0.6);
 
                 setTimeout(function() {
@@ -670,6 +815,7 @@
                     makeStudentMenu(h);
                     makeTimeSlider();
                 }, 500);
+
             } else {
                 // Already have preset nodes to work with.
                 var h = makeClusterButton();
@@ -759,7 +905,7 @@
 
                     // If we have no preset coords for this course, make some.
                     if (Object.keys(presetNodes).length == 0 || !gotAllNodes) {
-                        sendCoordsToServer();
+                        sendCoordsToServer(null);
                         graphData.edges = {};
                         makeStudentLinks();
                         gotAllNodes = true;
@@ -794,6 +940,9 @@
                 .enter().append("circle")
                 .attr('class', 'node')
                 .attr("r", nodeRadius)
+                .style('display', function(d) {
+                    return d.visible ? 'block' : 'none';
+                })
                 .on('mouseover', mouseover)
                 .on('mouseout', mouseout)
                 .on('contextmenu', rclick)
@@ -818,7 +967,11 @@
                     return d.colour;
                 })
                 .style("stroke-width", function(d) {
-                    return (d.weight * 2) + 'px';
+                    if (d.weight) {
+                        return (d.weight * 2) + 'px';
+                    } else {
+                        return (d.value / 3) + 'px';
+                    }
                 });
         }
 
@@ -1213,7 +1366,7 @@
                     return d.y;
                 })
                 .style('display', function(d) {
-                    return (!d.visible) ? 'none' : 'block';
+                    return d.visible ? 'block' : 'none';
                 })
                 .style('fill', function(d) {
                     return d.colour;
@@ -1243,7 +1396,11 @@
                     return d.target.y;
                 })
                 .style("stroke-width", function(d) {
-                    return (d.weight * 2) + 'px';
+                    if (d.weight) {
+                        return (d.weight * 2) + 'px';
+                    } else {
+                        return (d.value / 3) + 'px';
+                    }
                 })
                 .style("display", function(d) {
                     return d.source.visible && d.target.visible ? 'block' : 'none';
@@ -1310,28 +1467,23 @@
         /**
          * Called to send the module node coordinates to the server. This will also
          * update other arrays used in conjunction with the researcher interface.
+         *
+         * @param {object} links - The LSA graph has links that need to be stored.
          */
-        function sendCoordsToServer() {
+        function sendCoordsToServer(links) {
 
             // Get normalized coordinates.
             var normalized = normalizeNodes();
+            if (links) {
+                normalized.links = links;
+            }
 
             // If user is researcher, update their nodes as well.
             if (allGraphs && allScales) {
 
-                // Remove the scale and module attributes from normalized coords.
-                var nodes = {};
-                for (var key in normalized) {
-
-                    if (key == 'scale' || key == 'module') {
-                        continue;
-                    }
-                    nodes[key] = normalized[key];
-                }
-
                 // Update the nodes.
-                allGraphs[userId] = nodes;
                 allScales[userId] = normalized.scale;
+                allGraphs[userId] = normalized.nodes;
             }
 
             // Set the last changed time stamp.
@@ -1342,6 +1494,7 @@
             if (allChanges) {
                 allChanges[userId] = normalized.time;
             }
+
             // Update the nodes at the server.
             callServer(coordsScript, normalized);
         }
@@ -1357,7 +1510,6 @@
             var dx,
                 dy,
                 d,
-                maxNode,
                 max = 0,
                 cx = width / 2,
                 cy = height / 2;
@@ -1371,13 +1523,10 @@
 
                 if (d > max) {
                     max = d;
-                    maxNode = dn;
                 }
             });
 
             // Store distance and node that was used.
-            normalized.scale = max;
-            normalized.module = maxNode.id;
             coordsScale = max;
 
             // Normalize all nodes based on greatest distance.
@@ -1386,7 +1535,7 @@
                 normalized[dn.id] = {
                     'xcoord': '' + ((dn.x - cx) / max),
                     'ycoord': '' + ((dn.y - cy) / max),
-                    'visible': dn.visible ? 1 : 0
+                    'visible': dn.visible,
                 };
 
                 // If trying to view graph with no preset nodes, make them.
@@ -1397,7 +1546,10 @@
             });
 
             presetNodes = normalized;
-            return normalized;
+            return {
+                nodes: normalized,
+                scale: max,
+            };
         }
 
         /**
@@ -1417,8 +1569,12 @@
                     // Log console.log(this.responseText); to console?
                 }
             };
-            req.send('cid=' + courseId + '&data=' + JSON.stringify(outData) +
-                   '&sesskey=' + sessionKey);
+            // Ampersands, possible in comments and analysis name, cause issues in POST and GET, encode it.
+            var encoded = JSON.stringify(outData);
+            if (url == commentsScript) {
+                encoded = encoded.replaceAll('&', '%amp;');
+            }
+            req.send('cid=' + courseId + '&data=' + encoded + '&sesskey=' + sessionKey);
         }
 
         /**
@@ -1429,13 +1585,14 @@
 
             // Left panel menu.
             var sm = document.getElementById('student-menu');
+            var div = document.createElement('div');
 
             // Copy button.
             var copy = document.createElement('button');
             copy.innerHTML = langStrings.copy;
             copy.className = "btn btn-secondary mb-1";
             copy.addEventListener('click', copyGraph);
-            sm.appendChild(copy);
+            div.appendChild(copy);
 
             var bHeight = copy.getBoundingClientRect().height;
 
@@ -1444,7 +1601,8 @@
             print.innerHTML = langStrings.print;
             print.className = "btn btn-secondary mb-1";
             print.addEventListener('click', printGraph);
-            sm.appendChild(print);
+            div.appendChild(print);
+            sm.appendChild(div);
 
             // Teacher multiple select menu.
             teacherMenu = document.createElement('select');
@@ -1452,7 +1610,7 @@
             teacherMenu.id = 'teacher-select';
             teacherMenu.style.minWidth = '40px';
 
-            var menuHeight = height - bHeight - 20;
+            var menuHeight = height - bHeight - 80;
             teacherMenu.style.height = menuHeight + 'px';
             teacherMenu.addEventListener('change', changeGraph);
 
@@ -1528,9 +1686,9 @@
             var sel = document.getElementById('teacher-select');
             var key;
 
-            for (var i = 0; i < sel.options.length; i++) {
-                if (sel.options[i].selected) {
-                    key = sel.options[i].value;
+            for (var j = 0; j < sel.options.length; j++) {
+                if (sel.options[j].selected) {
+                    key = sel.options[j].value;
                     break;
                 }
             }
@@ -1565,10 +1723,29 @@
             ddd.selectAll('#legendUL').remove();
             makeNodeLegend();
 
-            // Need default weight at 1 to render links.
-            defaultWeight = 1.0;
-            getData();
-            defaultWeight = 0;
+            useLSA = 0;
+            if (lordLinks.length > 0 && lordLinks[0].value) {
+                // This is an LSA graph.
+                var nodes = [];
+                var keys = Object.keys(presetNodes);
+
+                for (var i = 0; i < keys.length; i++) {
+                    nodes[i] = presetNodes[keys[i]];
+                    nodes[i].colour = modColours[nodes[i].entype];
+                }
+                for (var link in lordLinks) {
+                    lordLinks[link].colour = modColours.originalLinks;
+                }
+
+                graphData = {nodes: nodes, links: lordLinks, edges: {}, maxSession: 0};
+                useLSA = 1;
+
+            } else {
+                // Need default weight at 1 to render links.
+                defaultWeight = 1.0;
+                getData();
+                defaultWeight = 0;
+            }
 
             // Get the current link weight value for the graph.
             var currentWeight = document.getElementById('weights-output').innerHTML;
@@ -1578,7 +1755,7 @@
             // Check or uncheck node legend boxes as needed.
             for (var nodeKey in nodeBoxes) {
                 if (presetNodes[nodeKey]) {
-                    nodeBoxes[nodeKey].checked = presetNodes[nodeKey].visible == 1 ? true : false;
+                    nodeBoxes[nodeKey].checked = presetNodes[nodeKey].visible ? true : false;
                 }
 
                 // Allow researcher to manipulate their graph, but not anyone elses.
@@ -1609,8 +1786,11 @@
             var maxWidth = 500,
                 mpos;
             nodeLegend = document.getElementById('legend');
-            nodeLegend.style = 'width: ' + legendWidth + 'px; height: ' + height +
-                'px; min-width: ' + legendWidth + 'px; max-width: ' + maxWidth + 'px;';
+            nodeLegend.style.width = legendWidth + 'px';
+            nodeLegend.style.height = height + 'px';
+            nodeLegend.style.minWidth = legendWidth + 'px';
+            nodeLegend.style.maxWidth = maxWidth + 'px';
+            nodeLegend.style.marginTop = '50px';
 
             // Allow legend to be resized.
             // Adapted from https://stackoverflow.com/questions/26233180/resize-a-
@@ -1761,10 +1941,10 @@
 
             // Check/uncheck based on node visibility from server.
             if (presetNodes[mid]) {
-                box.checked = presetNodes[mid].visible == 0 ? false : true;
+                box.checked = presetNodes[mid].visible ? true : false;
             } else if (presetNodes['g' + group]) {
                 // New resource in course, but no node data.
-                box.checked = presetNodes['g' + group].visible == 1 &&
+                box.checked = presetNodes['g' + group].visible &&
                     userId == allsKey ? true : false;
             } else {
                 // No node coordinates from server, default graph, everything visible.
@@ -1805,17 +1985,17 @@
 
                 // Hide individually clicked nodes.
                 if (dn.id == thisId) {
-                    dn.visible = thisChecked;
+                    dn.visible = thisChecked ? 1 : 0;
                     nodeBoxes[dn.id].checked = thisChecked;
 
                 } else if (thisType == 'grouping' && dn.group == thisGroup) {
                     // Hide all nodes when group checkbox clicked.
-                    dn.visible = thisChecked;
+                    dn.visible = thisChecked ? 1 : 0;
                     nodeBoxes[dn.id].checked = thisChecked;
 
                 } else if (thisChecked && dn.type == 'grouping' && dn.group == thisGroup) {
                     // Recheck group checkbox if individual module checkbox checked.
-                    dn.visible = thisChecked;
+                    dn.visible = thisChecked ? 1 : 0;
                     nodeBoxes[dn.id].checked = thisChecked;
                 }
             });
@@ -1915,7 +2095,7 @@
                     .on('mouseout', mouseout);
 
                 // Make node(s) hidden.
-                clickedNode.visible = false;
+                clickedNode.visible = 0;
                 nodeBoxes[clickedNode.id].checked = false;
 
                 // Hide all nodes for a group/section.
@@ -1923,7 +2103,7 @@
 
                     graphData.nodes.forEach(function(dn) {
                         if (dn.group == clickedNode.group) {
-                            dn.visible = false;
+                            dn.visible = 0;
                             nodeBoxes[dn.id].checked = false;
                         }
                     });
@@ -1980,7 +2160,11 @@
 
                     // Get normalized coordinates and send to server.
                     simulation.stop();
-                    sendCoordsToServer();
+                    if (graphData.links[0].value) {
+                        sendCoordsToServer(graphData.links);
+                    } else {
+                        sendCoordsToServer(null);
+                    }
                     drawTime();
 
                 } else {
@@ -2128,6 +2312,7 @@
                 simulation.restart();
                 setTimeout(simulation.stop, 100);
                 studentMenu.options.length = 0;
+                colourIndex = 0;
 
                 // Add users to the list if they are in a selected group.
                 for (var i = 0; i < groupMenu.options.length; i++) {
@@ -2225,10 +2410,14 @@
 
             // If positioning, stop the simulation and update the DB coords tables.
             if (positioning) {
-
                 setTimeout(function() {
                     simulation.stop();
-                    sendCoordsToServer();
+
+                    if (useLSA) {
+                        sendCoordsToServer(graphData.links);
+                    } else {
+                        sendCoordsToServer(null);
+                    }
                     drawTime();
                 }, 100);
             }
@@ -2246,6 +2435,9 @@
             ddd.selectAll('.hull').remove();
 
             positioning = false;
+            if (useLSA) {
+                graphing = true;
+            }
 
             var notNodes = doNodes(null);
             doLinks(notNodes);
@@ -2255,8 +2447,13 @@
             }
 
             positioning = true;
+            if (useLSA && graphData.links[0].label) {
+                graphing = false;
+                simulation.on('tick', tick2);
 
-            simulation.on('tick', tick1);
+            } else {
+                simulation.on('tick', tick1);
+            }
             simulation.restart();
             setTimeout(simulation.stop, 100);
         }
@@ -2289,7 +2486,9 @@
                 }
             });
 
-            simulation.nodes(nodes);
+            if (!useLSA) {
+                simulation.nodes(nodes);
+            }
 
             makeNodes(nodes, rclick, dragstartedFunc, draggedFunc, dragendedFunc);
 
@@ -2312,11 +2511,18 @@
 
             for (i in graphData.links) {
                 dl = graphData.links[i];
+                if (useLSA) {
+                    dl.colour = modColours.originalLinks;
+                }
 
                 // Get source/target id.
                 if (typeof dl.source == 'string') {
                     sid = dl.source;
                     tid = dl.target;
+                    if (useLSA) {
+                        dl.source = getEqualToNode(sid);
+                        dl.target = getEqualToNode(tid);
+                    }
                 } else {
                     sid = dl.source.id;
                     tid = dl.target.id;
@@ -2345,7 +2551,7 @@
                     // Add student links to link set.
                     for (j = sliderValues[0]; j <= sliderValues[1]; j++) {
 
-                        // Are we including the links for this slider value?.
+                        // Are we including the links for this slider value?
                         if (graphData.edges[options[i].value].length > j) {
 
                             sl = graphData.edges[options[i].value][j];
@@ -2355,6 +2561,10 @@
                                 id = sl.source + '_' + sl.target;
                                 sid = sl.source;
                                 tid = sl.target;
+                                if (useLSA) {
+                                    sl.source = getEqualToNode(sid);
+                                    sl.target = getEqualToNode(tid);
+                                }
                             } else {
                                 id = sl.source.id + '_' + sl.target.id;
                                 sid = sl.source.id;
@@ -2400,13 +2610,14 @@
                 } // End if option selected.
             } // End for any student who are checked.
 
-            simulation.force('link').links(links);
+            if (!useLSA && Object.keys(lordLinks).length == 0) {
+                simulation.force('link').links(links);
+            }
             makeLinks(links);
         }
 
         /**
-         * Called to check equality. Could not make anonymous function within
-         * loop as this caused an error with eslint.
+         * Called to get the node equal to the ID value passed.
          *
          * @param {number} id - The source or target node id
          * @return {object} node - The matching graph node
@@ -2961,8 +3172,19 @@
                 graph.remove();
                 resetPlayButton();
                 resetLogPanel();
+
                 document.getElementById('replayer').innerHTML = '&nbsp;';
                 document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
+                document.getElementById('prediction-box').checked = false;
+                document.getElementById('prediction-label').style.opacity = 0;
+                document.getElementById('prediction-box').style.opacity = 0;
+
+                // Might be multiple comment textboxes open, remove them.
+                for (var ctb in commentTextBoxes) {
+                    document.body.removeChild(commentTextBoxes[ctb].textbox);
+                    document.body.removeChild(commentTextBoxes[ctb].button);
+                }
+                commentTextBoxes = {};
             }
             if (studentMenu) {
                 document.body.removeChild(studentMenu);
@@ -2970,18 +3192,50 @@
 
             scaledCentroids = null;
             assignModuleColours();
-            getData();
+
+            if (r.islsa) { // LSA graphs are special.
+                var nodes = [];
+                var keys = Object.keys(presetNodes);
+
+                // Repackage nodes and add colour.
+                for (var j = 0; j < keys.length; j++) {
+                    nodes[j] = presetNodes[keys[j]];
+                    nodes[j].colour = modColours[nodes[j].entype];
+                }
+                graphData.nodes = nodes;
+
+                for (var ll in lordLinks) {
+                    lordLinks[ll].colour = modColours.originalLinks;
+                }
+                graphData.links = lordLinks;
+
+                graphData.edges = {};
+                makeStudentLinks();
+
+            } else {
+                getData();
+            }
             sliderValues = [0, graphData.maxSession];
+
             document.getElementById('replay-stop').style.opacity = 1;
             document.getElementById('replay-pause').style.opacity = 1;
             document.getElementById('replay-back').style.opacity = 1;
             document.getElementById('replay-forward').style.opacity = 1;
             document.getElementById('delete-button').style.opacity = 1;
 
+            if (replayData[-1]) {
+                document.getElementById('prediction-label').style.opacity = 1;
+                document.getElementById('prediction-box').style.opacity = 1;
+            }
+
+            if (predictionAnalysis && predictionAnalysis.coordsid === r.gid && predictionAnalysis.clusterid === r.cid) {
+                document.getElementById('prediction-box').checked = true;
+            }
+
             // Ensure no new nodes are shown if they have no coords.
             for (var i = 0; i < graphData.nodes.length; i++) {
                 if (graphData.nodes[i].xcoord === undefined) {
-                    graphData.nodes[i].visible = false;
+                    graphData.nodes[i].visible = 0;
                 }
             }
 
@@ -2990,6 +3244,7 @@
             // Draw the graph.
             initGraph(0);
             drawGraphNew(false);
+
             graphNodes.on('mouseover', null).on('mouseout', null);
             noCentroidMouse = true;
 
@@ -3644,6 +3899,7 @@
             coordsScale = originalReplayData[datasetid][coordsid].scale;
             modules = originalReplayData[datasetid][coordsid].mods;
             replayData = originalReplayData[datasetid][coordsid][clusterid];
+            var islsa = originalReplayData[datasetid][coordsid].islsa;
             logs = originalReplayData[datasetid][coordsid].logs;
             users = originalReplayData[datasetid][coordsid].users;
             comments = originalReplayData[datasetid][coordsid][clusterid].comments;
@@ -3735,7 +3991,7 @@
                 }
             }
 
-            return {members: ob, did: datasetid, gid: coordsid, cid: clusterid};
+            return {members: ob, did: datasetid, gid: coordsid, cid: clusterid, islsa: islsa};
         }
 
         /**
@@ -3833,6 +4089,7 @@
             var stop = document.createElement('button');
             stop.id = 'replay-stop';
             stop.innerHTML = '&#9606';
+            stop.className = "btn btn-secondary";
             stop.addEventListener('click', replayStop);
             stop.style.opacity = 0;
             ctrlDiv.appendChild(stop);
@@ -3842,6 +4099,7 @@
             playPause.id = 'replay-pause';
             playPause.innerHTML = '&#9654';
             playPause.value = 'play';
+            playPause.className = "btn btn-secondary";
             playPause.addEventListener('click', replayPause);
             playPause.style.opacity = 0;
             ctrlDiv.appendChild(playPause);
@@ -3850,6 +4108,7 @@
             var playStep1 = document.createElement('button');
             playStep1.id = 'replay-back';
             playStep1.innerHTML = '&#9614&#9664';
+            playStep1.className = "btn btn-secondary";
             playStep1.addEventListener('click', replayBack);
             playStep1.style.opacity = 0;
             ctrlDiv.appendChild(playStep1);
@@ -3859,6 +4118,7 @@
             playStep2.id = 'replay-forward';
             playStep2.style.marginRight = '80px';
             playStep2.innerHTML = '&#9654&nbsp&nbsp&#9614';
+            playStep2.className = "btn btn-secondary";
             playStep2.addEventListener('click', replayForward.bind(this, true));
             playStep2.style.opacity = 0;
             ctrlDiv.appendChild(playStep2);
@@ -3867,9 +4127,44 @@
             var del = document.createElement('button');
             del.id = 'delete-button';
             del.innerHTML = langStrings.delbutton;
+            del.className = "btn btn-secondary";
             del.addEventListener('click', deleteClusteringData);
             del.style.opacity = 0;
             ctrlDiv.appendChild(del);
+
+            // Select analysis for prediction checkbox.
+            var l = document.createElement('label');
+            l.id = 'prediction-label';
+            l.style.opacity = 0;
+            l.style.marginLeft = '6px';
+            l.appendChild(document.createTextNode(langStrings.predictionbox));
+            ctrlDiv.appendChild(l);
+
+            var pred = document.createElement('input');
+            pred.type = 'checkbox';
+            pred.id = 'prediction-box';
+            pred.addEventListener('click', changePredictionAnalysis);
+            pred.style.opacity = 0;
+            pred.style.marginLeft = '2px';
+            ctrlDiv.appendChild(pred);
+        }
+
+        /**
+         * Called to change the analysis used for prediction.
+         */
+        function changePredictionAnalysis() {
+
+            var menu = document.getElementById('replay-select');
+            var selected = menu.options[menu.selectedIndex].value;
+            var uid = selected.split('_')[0].split('-')[0];
+
+            var out = {
+                userid: uid,
+                coordsid: lastChange,
+                clusterid: coordsData.clusterId,
+            };
+            callServer(predictionScript, out);
+            predictionAnalysis = out;
         }
 
         /**
@@ -3904,6 +4199,13 @@
                     resetLogPanel();
                     document.getElementById('replayer').innerHTML = '&nbsp;';
                     document.getElementById('replaydragdrop').innerHTML = '&nbsp;';
+
+                    // Might be multiple comment textboxes open, remove them.
+                    for (var ctb in commentTextBoxes) {
+                        document.body.removeChild(commentTextBoxes[ctb].textbox);
+                        document.body.removeChild(commentTextBoxes[ctb].button);
+                    }
+                    commentTextBoxes = {};
                 }, 500);
             }
 
@@ -3918,6 +4220,8 @@
             document.getElementById('replay-back').style.opacity = 0;
             document.getElementById('replay-forward').style.opacity = 0;
             document.getElementById('delete-button').style.opacity = 0;
+            document.getElementById('prediction-label').style.opacity = 0;
+            document.getElementById('prediction-box').style.opacity = 0;
 
             // Unselect selected clustering run.
             var sel = document.getElementById('replay-select');
@@ -4351,6 +4655,8 @@
             var textBox = document.createElement('input');
             textBox.type = 'text';
             textBox.className = 'form-control custom-control mr-1';
+            textBox.style.width = '160px';
+            textBox.style.marginRight = '10px';
             textBox.id = 'clustering-replay-comment-text';
 
             if (comments[0]) {
@@ -4609,11 +4915,7 @@
                     if (notNodes[s] || notNodes[t]) {
                         continue;
                     }
-                    // Order the link so links in either direction equivalent.
                     id = s + '_' + t;
-                    if (s > t) {
-                        id = t + '_' + s;
-                    }
 
                     // Add the link to the link set, considering weights.
                     if (!links[id]) {
@@ -4648,12 +4950,21 @@
                     // Make the common link.
                     var split = lid.split('_');
 
-                    common[common.length] = {
-                        source: split[0],
-                        target: split[1],
-                        weight: min,
-                        colour: 'black'
-                    };
+                    if (useLSA) {
+                        common[common.length] = {
+                            source: getEqualToNode(split[0]),
+                            target: getEqualToNode(split[1]),
+                            weight: min,
+                            colour: 'black'
+                        };
+                    } else {
+                        common[common.length] = {
+                            source: split[0],
+                            target: split[1],
+                            weight: min,
+                            colour: 'black'
+                        };
+                    }
                 }
             }
             // Keep the section to module links.
@@ -4725,7 +5036,9 @@
                 .on('mouseover', mouseover)
                 .on('mouseout', mouseout);
 
-            simulation.force('link').links(common);
+            if (!useLSA) {
+                simulation.force('link').links(common);
+            }
             makeLinks(common);
 
             graphLinks
@@ -5010,6 +5323,7 @@
                 i,
                 j,
                 rsd;
+
             for (i = 0; i < members.length; i++) {
 
                 // Get the reversed centroid coordinate.
@@ -5766,7 +6080,7 @@
             if (!version36) {
                 logPanel.style.position = 'absolute';
                 logPanel.style.right = '6px';
-                logPanel.style.top = '110px';
+                logPanel.style.top = '120px';
             }
 
             lp.appendChild(logPanel);
@@ -6105,22 +6419,31 @@
 
                 for (link in links) {
                     split = link.split('_');
-
-                    linx[linx.length] = {
-                        source: split[0],
-                        target: split[1],
-                        weight: links[link],
-                        colour: colour
-                    };
+                    if (useLSA) {
+                        linx[linx.length] = {
+                            source: getEqualToNode(split[0]),
+                            target: getEqualToNode(split[1]),
+                            weight: links[link],
+                            colour: colour
+                        };
+                    } else {
+                        linx[linx.length] = {
+                            source: split[0],
+                            target: split[1],
+                            weight: links[link],
+                            colour: colour
+                        };
+                    }
                 }
-
                 // Keep the section to module links.
                 for (i = 0; i < graphData.links.length; i++) {
                     linx[linx.length] = graphData.links[i];
                 }
 
                 // Show the graph with student links.
-                simulation.force('link').links(linx);
+                if (!useLSA) {
+                    simulation.force('link').links(linx);
+                }
                 makeLinks(linx);
 
                 graphNodes
@@ -6189,18 +6512,14 @@
             }
             textBox.style.left = tbx + 'px';
 
-            // Below centroid if possible, above if too close to bottom edge.
+            // At centroid level.
             var scy = cluster ? centroids[key].y : scaledCentroids[key].y;
-            var tby = scy + 190 >= height ? scy + 140 : scy + 290;
-            if (cluster) {
-                tby = scy + 165 >= height ? scy + 165 : scy + 265;
-            }
+            var tby = scy + 220;
             textBox.style.top = tby + 'px';
 
             // The save button.
             var save = document.createElement('button');
             save.innerHTML = replayUserId == userId ? langStrings.save : langStrings.close;
-            save.id = user;
 
             // Position based on text area position.
             save.style.position = 'absolute';
@@ -6210,6 +6529,8 @@
             document.body.appendChild(save);
 
             textBox.focus();
+
+            commentTextBoxes[user] = {button: save, textbox: textBox};
 
             // Click listener for text box.
             textBox.addEventListener('click', function() {
@@ -6264,6 +6585,7 @@
 
                 document.body.removeChild(textBox);
                 document.body.removeChild(save);
+                delete commentTextBoxes[user];
             });
         }
         // End of modular encapsulation, start the program.

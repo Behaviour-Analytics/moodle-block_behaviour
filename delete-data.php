@@ -29,6 +29,8 @@ require_once("$CFG->dirroot/blocks/behaviour/locallib.php");
 defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
+$shownames = required_param('names', PARAM_INT);
+$uselsa = required_param('uselsa', PARAM_INT);
 
 $course = get_course($id);
 require_login($course);
@@ -37,7 +39,11 @@ $context = context_course::instance($course->id);
 require_capability('block/behaviour:export', $context);
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/delete-data.php', array('id' => $course->id));
+$PAGE->set_url('/blocks/behaviour/delete-data.php', array(
+    'id' => $course->id,
+    'names' => $shownames,
+    'uselsa' => $uselsa
+));
 $PAGE->set_title(get_string('pluginname', 'block_behaviour'));
 $PAGE->set_pagelayout('standard');
 $PAGE->set_heading($course->fullname);
@@ -45,7 +51,11 @@ $PAGE->set_heading($course->fullname);
 // The options form.
 $mform = new block_behaviour_delete_form();
 
-$toform = ['id' => $course->id];
+$toform = [
+    'id' => $course->id,
+    'names' => $shownames,
+    'uselsa' => $uselsa
+];
 $mform->set_data($toform);
 
 // Main course page URL for redirects.
@@ -69,6 +79,8 @@ if ($mform->is_cancelled()) {
         $DB->delete_records('block_behaviour_members', $params);
         $DB->delete_records('block_behaviour_man_members', $params);
         $DB->delete_records('block_behaviour_comments', $params);
+        $DB->delete_records('block_behaviour_common_links', $params);
+        $DB->delete_records('block_behaviour_man_cmn_link', $params);
     }
 
     // Delete graph configuration data.
@@ -77,6 +89,7 @@ if ($mform->is_cancelled()) {
         $DB->delete_records('block_behaviour_coords', $params);
         $DB->delete_records('block_behaviour_centroids', $params);
         $DB->delete_records('block_behaviour_centres', $params);
+        $DB->delete_records('block_behaviour_lsa_links', $params);
     }
 
     // Delete student log data and reset lastsync time.
@@ -98,8 +111,8 @@ if ($mform->is_cancelled()) {
     // Output form.
 
     echo $OUTPUT->header();
-    echo html_writer::div(block_behaviour_get_nav_links(0), '');
-    echo html_writer::div('<hr/>', '');
+    echo html_writer::div(block_behaviour_get_nav_links($shownames, $uselsa), '');
+    echo html_writer::empty_tag('hr');
     $mform->display();
     echo $OUTPUT->footer();
 }

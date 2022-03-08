@@ -56,40 +56,32 @@ if (!block_behaviour_is_installed($course->id)) {
 }
 
 $userid = $USER->id;
-$nodes = json_decode($nodedata);
+$nodedata = json_decode($nodedata);
 
 // Build new records.
 $data = [];
 $nds = [];
-$scale = 1.0;
-$coordsid = $nodes->time;
+$scale = $nodedata->scale;
+$coordsid = $nodedata->time;
 
-foreach ($nodes as $key => $value) {
+foreach ($nodedata->nodes as $key => $value) {
 
-    // Parse out non-coordinate related data.
-    if ($key == 'scale') {
-        $scale = $value;
-    } else if ($key == 'module') {
-        continue;
-    } else if ($key == 'time') {
-        continue;
-    } else {
-        $data[] = (object) array(
-            'courseid' => $courseid,
-            'userid'   => $userid,
-            'changed'  => $coordsid,
-            'moduleid' => $key,
-            'xcoord'   => $value->xcoord,
-            'ycoord'   => $value->ycoord,
-            'visible'  => $value->visible
-        );
-        // Copy nodes for use in centroid calculations.
-        $nds[$key] = array(
-            'xcoord'   => $value->xcoord,
-            'ycoord'   => $value->ycoord,
-            'visible'  => $value->visible
-        );
-    }
+    $data[] = (object) array(
+        'courseid' => $courseid,
+        'userid'   => $userid,
+        'changed'  => $coordsid,
+        'moduleid' => $key,
+        'xcoord'   => $value->xcoord,
+        'ycoord'   => $value->ycoord,
+        'visible'  => $value->visible
+    );
+
+    // Copy nodes for use in centroid calculations.
+    $nds[$key] = array(
+        'xcoord'   => $value->xcoord,
+        'ycoord'   => $value->ycoord,
+        'visible'  => $value->visible
+    );
 }
 // Store new node coordinates.
 $DB->insert_records('block_behaviour_coords', $data);
@@ -100,6 +92,23 @@ $DB->insert_record('block_behaviour_scales', (object) array(
     'coordsid' => $coordsid,
     'scale'    => $scale
 ));
+
+if (isset($nodedata->links)) {
+    $data = [];
+    foreach ($nodedata->links as $link) {
+        $data[] = (object) array(
+            'courseid'  => $courseid,
+            'userid'    => $userid,
+            'coordsid'  => $coordsid,
+            'modid1'    => $link->source->id,
+            'modid2'    => $link->target->id,
+            'value'     => $link->value,
+            'frequency' => $link->frequency,
+            'studentids' => $link->studentids,
+        );
+    }
+    $DB->insert_records('block_behaviour_lsa_links', $data);
+}
 
 block_behaviour_update_centroids_and_centres($courseid, $userid, $coordsid, $nds);
 

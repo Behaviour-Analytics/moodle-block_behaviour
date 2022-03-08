@@ -20,7 +20,7 @@ manually positioned and/or removed from the graph, which will affect the student
 centroids. When students create new data for the system, the clustering results
 get updated and can be replayed to visually verify the grouping remains correct
 with the addition of the new data. Incorrect groupings can be manually altered.
-The plugin is intended for teacher use and will not be seen by students.
+The plugin is intended for teacher use and may not be seen by students.
 
 
 Installation:
@@ -34,7 +34,10 @@ by copying the plugin files into the blocks/behaviour directory.
 Post-installation set-up:
 
 The plugin contains some global settings that affect what a user sees when they
-use the program. The settings give the option to grant or revoke the role of
+use the program. There is an option to allow students to see their study ID and
+to show student names instead of sequential numbers in the interfaces. If the
+LORD block is installed, then there is also the option to allow integration with
+it. The settings also give the option to grant or revoke the role of
 researcher to any non-student user enroled in a course the plugin is installed
 in. The researcher role allows the user to see the current graph configurations
 and clustering results of other users in that course. The researcher can only
@@ -198,8 +201,7 @@ deleted, not the Moodle log data itself. Data for all users in the course is
 deleted.
 
 The dashboard:
-The dashboard is still under construction, but has some working features. The
-dashboard consists of a number of links at the top of the page that will show
+The dashboard consists of a number of links at the top of the page that will show
 different data. These include the summary tables, by graph and by iteration. The
 summary by graph shows the latest iteration of clustering and its results, while
 the summary by iteration shows results for all iterations. To view the summary
@@ -209,9 +211,8 @@ viewing graph summaries it is possible to download the shown data as a CSV file,
 less the bar graphs.
 
 There is also a surveys link that allows for survey management. There are 3
-surveys installed by default and there is the option to make custom surveys.
-Currently only Likert scale and binary choice questions are available. The link
-in the surveys menu can be used in a URL type course module to give students
+surveys installed by default and there is the option to make custom surveys. The
+link in the surveys menu can be used in a URL type course module to give students
 access to the survey. The course id needs to be passed in the URL as well, which
 is done in the settings under URL variables, where the value is "id". Currently,
 a student may only take a survey once. When viewing survey responses, it is

@@ -56,4 +56,11 @@
         <license>MIT</license>
         <licenseversion>1.0</licenseversion>
     </library>
+    <library>
+        <location>lsa/sequential_analysis.class.php</location>
+        <name>Lag Sequential Analysis Tool</name>
+        <version>1.0</version>
+        <license>MIT</license>
+        <licenseversion>1.0</licenseversion>
+    </library>
 </libraries>

@@ -77,8 +77,12 @@ class block_behaviour extends block_base {
                 $studyid = block_behaviour_get_study_id($COURSE->id, $USER->id);
                 $this->content = new stdClass();
                 $this->content->text = get_string('studyid', 'block_behaviour', $studyid);
-                $this->content->footer = "";
+            }
 
+            $this->setup_psg_switch(true);
+
+            if (isset($this->content)) {
+                $this->content->footer = "";
                 return $this->content;
 
             } else {
@@ -102,44 +106,50 @@ class block_behaviour extends block_base {
         $task->update_course($course);
 
         $this->content = new stdClass();
-        $shownames = $this->config && $this->config->shownames ? 1 : 0;
+        $this->content->text = '';
+
+        $shownames = 0;
+        $uselsa = 0;
+        if (isset($this->config)) {
+            $shownames = isset($this->config->shownames) && $this->config->shownames ? 1 : 0;
+            $uselsa = isset($this->config->uselsa) && $this->config->uselsa ? 1 : 0;
+        }
+        if (!get_config('block_behaviour', 'allowshownames')) {
+            $shownames = get_config('block_behaviour', 'shownames') ? 1 : 0;
+        }
+
+        $this->setup_psg_switch(false);
+
+        $navlinkparams = [
+            'id' => $COURSE->id,
+            'names' => $shownames,
+            'uselsa' => $uselsa,
+        ];
 
         // Link to the graphing/clustering stages.
-        $this->content->text = html_writer::tag('a', get_string("launchplugin", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/view.php', array(
-                'id' => $COURSE->id,
-                'names' => $shownames,
-            ))));
+        $this->content->text .= html_writer::tag('a', get_string("launchplugin", "block_behaviour"),
+            array('href' => new moodle_url('/blocks/behaviour/view.php', $navlinkparams)));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to the clustering replay stage.
         $this->content->text .= html_writer::tag('a', get_string("launchreplay", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/replay.php', array(
-                'id' => $COURSE->id,
-                'names' => $shownames,
-            ))));
+            array('href' => new moodle_url('/blocks/behaviour/replay.php', $navlinkparams)));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to module node positioning.
         $this->content->text .= html_writer::tag('a', get_string("launchconfiguration", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/position.php', array(
-                'id' => $COURSE->id,
-            ))));
+            array('href' => new moodle_url('/blocks/behaviour/position.php', $navlinkparams)));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to the documentation.
         $this->content->text .= html_writer::tag('a', get_string("docsanchor", "block_behaviour"),
-            array('href' => new moodle_url('/blocks/behaviour/documentation.php', array(
-                'id' => $COURSE->id
-            ))));
+            array('href' => new moodle_url('/blocks/behaviour/documentation.php', $navlinkparams)));
         $this->content->text .= html_writer::empty_tag('br');
 
         // Link to the delete data page, only for admins.
         if (has_capability('block/behaviour:export', $context)) {
             $this->content->text .= html_writer::tag('a', get_string("deldata", "block_behaviour"),
-                array('href' => new moodle_url('/blocks/behaviour/delete-data.php', array(
-                    'id' => $COURSE->id
-                ))));
+                array('href' => new moodle_url('/blocks/behaviour/delete-data.php', $navlinkparams)));
             $this->content->text .= html_writer::empty_tag('br');
         }
 
@@ -156,15 +166,13 @@ class block_behaviour extends block_base {
             $this->content->text .= html_writer::empty_tag('br');
         }
 
-        // Link to the clustering dashboard, for researchers only.
-        if (get_config('block_behaviour', 'c_'.$COURSE->id.'_p_'.$USER->id)) {
-            $this->content->text .= html_writer::tag('a', get_string("dashanchor", "block_behaviour"),
-                array('href' => new moodle_url('/blocks/behaviour/dashboard.php', array(
-                    'id' => $COURSE->id,
-                    'names' => $shownames,
-                ))));
-            $this->content->text .= html_writer::empty_tag('br');
-        }
+        // Link to the clustering dashboard.
+        $this->content->text .= html_writer::tag('a', get_string("dashanchor", "block_behaviour"),
+            array('href' => new moodle_url('/blocks/behaviour/dashboard.php', array(
+                'id' => $COURSE->id,
+                'names' => $shownames,
+            ))));
+        $this->content->text .= html_writer::empty_tag('br');
         $this->content->text .= html_writer::empty_tag('br');
 
         // Advanced export feature.
@@ -268,5 +276,57 @@ class block_behaviour extends block_base {
      */
     public function has_config() {
         return true;
+    }
+
+    /**
+     * Called to setup the Personalized Study Guide on/off switch.
+     *
+     * @param boolean $isstudent Either student or teacher.
+     */
+    private function setup_psg_switch($isstudent) {
+        global $DB, $COURSE, $USER;
+
+        if ($COURSE->format != 'psg') {
+            return;
+        }
+
+        // Content may or may not have been created at this point.
+        if (isset($this->content) && $this->content->text) {
+            $this->content->text .= html_writer::empty_tag('br');
+
+        } else {
+            $this->content = new stdClass();
+            $this->content->text = '';
+        }
+
+        // Check to see if the student turned on/off the personalisation, default is on.
+        $params = [
+            'courseid' => $COURSE->id,
+            'userid' => $USER->id,
+        ];
+        $records = $DB->get_records('block_behaviour_psg_log', $params, 'time DESC');
+
+        $record = reset($records);
+        $psgon = 1;
+        if ($record && !$record->psgon) {
+            $psgon = 0;
+        }
+
+        // Get the JS data together and pass along.
+        $out = [
+            'psgon' => $psgon,
+            'psgontext' => get_string('psgontext', 'block_behaviour'),
+            'psgofftext' => get_string('psgofftext', 'block_behaviour'),
+            'psglogurl' => (string) new moodle_url('/blocks/behaviour/log-psg-switch.php'),
+            'courseid' => $COURSE->id,
+        ];
+
+        $this->content->text .= html_writer::div('', '', ['id' => 'psg-switch']);
+        $this->page->requires->js(new moodle_url('/blocks/behaviour/javascript/psg-switch.js'));
+        $this->page->requires->js_init_call('makePSGSwitch', [$out], true);
+
+        if (!$isstudent) {
+            $this->content->text .= html_writer::empty_tag('br');
+        }
     }
 }

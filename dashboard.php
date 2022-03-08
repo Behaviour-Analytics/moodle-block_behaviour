@@ -30,7 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
 $shownames = required_param('names', PARAM_INT);
-$type = optional_param('type', -1, PARAM_INT);
+$type = optional_param('type', 1, PARAM_INT);
 $download = optional_param('download', 0, PARAM_INT);
 $preselected = optional_param('selected', '', PARAM_RAW);
 $surveyid = optional_param('surveyid', 0, PARAM_INT);
@@ -65,6 +65,11 @@ $iteration = false;
 $newsurvey = false;
 $managesurvey = false;
 $surveyoverview = false;
+$showlsradar = false;
+$showbfiradar = false;
+$lsdata = [];
+$lsdata2 = [];
+$susscore = -1;
 
 if (!get_config('block_behaviour', 'allowshownames')) {
     $shownames = get_config('block_behaviour', 'shownames') ? 1 : 0;
@@ -72,13 +77,7 @@ if (!get_config('block_behaviour', 'allowshownames')) {
 
 $mform = new block_behaviour_summary_form($memberdata, $course->id);
 
-if ($type === -1) {
-    $table = new html_table();
-    $data = [];
-    $cell = new html_table_cell(html_writer::div(get_string('underconst', 'block_behaviour')));
-    $table->data = [new html_table_row([$cell])];
-
-} else if ($type === 0) { // Select graph form.
+if ($type === 0) { // Select graph form.
 
     // Form was submitted, figure out what was selected.
     if ($fromform = $mform->get_data()) {
@@ -134,9 +133,40 @@ if ($type === -1) {
     $newsurvey = true;
 
 } else if ($type === 6) { // View survey responses.
-    list($table, $csv) = block_behaviour_get_survey_responses($course, $surveyid, $shownames);
+    list($table, $csv, $namemap) = block_behaviour_get_survey_responses($course, $surveyid, $shownames);
     $filename = get_string('surveyresponses', 'block_behaviour');
     $showdownload = true;
+
+    $title = $DB->get_field('block_behaviour_surveys', 'title', ['id' => $surveyid]);
+
+    if ($title == get_string('ilstitle', 'block_behaviour')) {
+        $showlsradar = true;
+        $lsdata = block_behaviour_get_ls_data($course->id, $surveyid, false);
+        $lsdata2 = block_behaviour_get_ls_data($course->id, $surveyid, true);
+
+    } else if ($title == get_string('bfi1title', 'block_behaviour')) {
+        $showbfiradar = true;
+        $lsdata = block_behaviour_get_bfi_data($course->id, $surveyid);
+
+    } else if ($title == get_string('sustitle', 'block_behaviour')) {
+        $susscore = block_behaviour_get_sus_score($course->id, $surveyid);
+    }
+
+} else if ($type === 7) { // PSG log details.
+    list($table, $csv) = block_behaviour_get_psg_log_details($course->id, $shownames);
+    $showdownload = true;
+    $filename = str_replace(' ', '_', get_string('psgdetaillink', 'block_behaviour'));
+
+} else if ($type === 8) { // PSG log summary.
+    list($table, $csv) = block_behaviour_get_psg_log_summary($course, $shownames);
+    $showdownload = true;
+    $filename = str_replace(' ', '_', get_string('psgsummarylink', 'block_behaviour'));
+
+} else if ($type === 9) { // Learning styles of learning objects.
+    list($table, $csv) = block_behaviour_get_ls_of_lo($course, $shownames);
+    $showdownload = true;
+    $filename = str_replace(' ', '_', get_string('lsoflolink', 'block_behaviour'));
+    $islsoflo = true;
 }
 
 // User wants to download this data.
@@ -163,10 +193,13 @@ $out = array(
     'deletequrl' => (string) new moodle_url('/blocks/behaviour/delete-survey-question.php'),
     'changequestionurl' => (string) new moodle_url('/blocks/behaviour/change-question-order.php'),
     'uparrowurl' => (string) new moodle_url('/blocks/behaviour/up-arrow.png'),
-    'langstrings' => block_behaviour_get_lang_strings(),
     'survey' => $survey,
     'questions' => $questions,
     'qoptions' => $qoptions,
+    'showlsradar' => $showlsradar,
+    'showbfiradar' => $showbfiradar,
+    'lsdata' => $lsdata,
+    'lsdata2' => $lsdata2,
 );
 
 // Set up the page.
@@ -186,33 +219,76 @@ $PAGE->set_heading($course->fullname);
 echo $OUTPUT->header();
 
 // Dashboard links.
-$a0 = html_writer::tag('a', get_string('selectgraph', 'block_behaviour'), array(
+$spc = '&nbsp&nbsp&nbsp';
+$out = html_writer::tag('a', get_string('selectgraph', 'block_behaviour'), array(
     'href' => new moodle_url('#', array(
         'id' => $course->id,
         'names' => $shownames,
         'type' => 0
     ))
 ));
+$out .= $spc;
 
-$a1 = html_writer::tag('a', get_string('graphsummary', 'block_behaviour'), array(
+$out .= html_writer::tag('a', get_string('graphsummary', 'block_behaviour'), array(
     'href' => new moodle_url('#', array(
         'id' => $course->id,
         'names' => $shownames,
         'type' => 1
     ))
 ));
+$out .= $spc;
 
-$a2 = html_writer::tag('a', get_string('itersummary', 'block_behaviour'), array(
+$out .= html_writer::tag('a', get_string('itersummary', 'block_behaviour'), array(
     'href' => new moodle_url('#', array(
         'id' => $course->id,
         'names' => $shownames,
         'type' => 2
     ))
 ));
+$out .= $spc;
 
-$a3 = '';
+$out .= html_writer::tag('a', get_string('surveylink', 'block_behaviour'), array(
+    'href' => new moodle_url('#', array(
+        'id' => $course->id,
+        'names' => $shownames,
+        'type' => 3
+    ))
+));
+$out .= $spc;
+
+if ($DB->record_exists('block_behaviour_psg_log', ['courseid' => $course->id])) {
+    $out .= html_writer::tag('a', get_string('psgdetaillink', 'block_behaviour'), array(
+        'href' => new moodle_url('#', array(
+            'id' => $course->id,
+            'names' => $shownames,
+            'type' => 7
+        ))
+    ));
+    $out .= $spc;
+
+    $out .= html_writer::tag('a', get_string('psgsummarylink', 'block_behaviour'), array(
+        'href' => new moodle_url('#', array(
+            'id' => $course->id,
+            'names' => $shownames,
+            'type' => 8
+        ))
+    ));
+    $out .= $spc;
+}
+
+if ($course->format == 'psg') {
+    $out .= html_writer::tag('a', get_string('lsoflolink', 'block_behaviour'), array(
+        'href' => new moodle_url('#', array(
+            'id' => $course->id,
+            'names' => $shownames,
+            'type' => 9
+        ))
+    ));
+    $out .= $spc;
+}
+
 if ($showdownload) {
-    $a3 = html_writer::tag('a', get_string('downloaddata', 'block_behaviour'), array(
+    $out .= html_writer::tag('a', get_string('downloaddata', 'block_behaviour'), array(
         'href' => new moodle_url('#', array(
             'id' => $course->id,
             'names' => $shownames,
@@ -224,16 +300,6 @@ if ($showdownload) {
     ));
 }
 
-$a4 = html_writer::tag('a', get_string('surveylink', 'block_behaviour'), array(
-    'href' => new moodle_url('#', array(
-        'id' => $course->id,
-        'names' => $shownames,
-        'type' => 3
-    ))
-));
-
-$spc = '&nbsp&nbsp&nbsp';
-$out = $a0 . $spc . $a1 . $spc . $a2 . $spc . $a4 . $spc . $a3;
 echo html_writer::div($out, '', ['style' => 'text-align: center;', 'id' => 'header-links']);
 
 if ($displayselectform) {
@@ -248,7 +314,13 @@ if ($displayselectform) {
                 'type' => 5
             )),
         ));
+    } else if ($showlsradar || $showbfiradar) {
+        echo html_writer::div('', '', ['id' => 'lsradar']);
+
+    } else if ($susscore > 0) {
+        echo html_writer::tag('h3', get_string('susscore', 'block_behaviour', $susscore));
     }
+
     echo html_writer::table($table);
 }
 

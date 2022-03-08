@@ -7,5 +7,5 @@ To upgrade the library (which may or may not break existing code), download the
 latest release and wrap the code as an AMD module. See the currently wrapped
 library in amd/src/mersenne-twister.js for an example. The original file should
 be store in this directory, while the AMD wrapped file resides in amd/src. Grunt
-will need to be run to minify the new library. The lib/thirdpartylibs.xml file
+will need to be run to minify the new library. The thirdpartylibs.xml file
 can then be updated.

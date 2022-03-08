@@ -30,6 +30,7 @@ defined('MOODLE_INTERNAL') || die();
 
 $id = required_param('id', PARAM_INT);
 $shownames = required_param('names', PARAM_INT);
+$uselsa = required_param('uselsa', PARAM_INT);
 
 $course = get_course($id);
 require_login($course);
@@ -61,13 +62,6 @@ $globalmembers = null;
 // Get modules and node positions.
 list($mods, $modids) = block_behaviour_get_course_info($course);
 
-// Get the user preferences, if exist.
-$params = array(
-    'courseid' => $course->id,
-    'userid' => $USER->id
-);
-$lord = $DB->get_record('block_behaviour_lord_options', $params);
-
 $replay = [];
 $manual = [];
 $users  = [];
@@ -91,11 +85,13 @@ if (get_config('block_behaviour', 'c_'.$course->id.'_p_'.$USER->id)) {
 
 for ($i = 0; $i < count($users); $i++) {
 
-    // Get all clustering data for this data set.
-    $coordids = $DB->get_records('block_behaviour_clusters', array(
+    $params = array(
         'courseid' => $course->id,
-        'userid'   => $users[$i]
-    ), '', 'distinct coordsid');
+        'userid' => $users[$i],
+    );
+
+    // Get all clustering data for this data set.
+    $coordids = $DB->get_records('block_behaviour_clusters', $params, '', 'distinct coordsid');
 
     $dataset = $users[$i].'-'.$course->id;
     $replay[$dataset] = [];
@@ -104,17 +100,8 @@ for ($i = 0; $i < count($users); $i++) {
     foreach ($coordids as $coords) {
 
         $coordid = $coords->coordsid;
-        $links = [];
-
-        if (get_config('block_behaviour', 'uselord') && $lord && $lord->uselord) {
-            list($coordsid, $scale, $nodes, $numnodes) =
-                block_behaviour_get_lord_scale_and_node_data($coordid, $users[$i], $course, $lord->usecustom);
-            $links = block_behaviour_get_lord_link_data($course->id, $coordsid);
-
-        } else {
-            list($coordsid, $scale, $nodes, $numnodes) =
-                block_behaviour_get_scale_and_node_data($coordid, $users[$i], $course);
-        }
+        list($coordsid, $scale, $nodes, $numnodes, $links, $islsa) =
+            block_behaviour_get_graph_data($coordid, $users[$i], $course, $mods, $modids);
 
         // Not always nodes when using LORD generated graph. This happens
         // because the coord ids are pulled from the clusters table, which
@@ -134,6 +121,7 @@ for ($i = 0; $i < count($users); $i++) {
             'last'  => $coordsid,
             'logs'  => $logs,
             'users' => $userinfo,
+            'islsa' => $islsa,
         );
 
         // Get all clustering data for this data set.
@@ -250,7 +238,11 @@ if ($debugcentroids) {
 }
 
 // Set up the page.
-$PAGE->set_url('/blocks/behaviour/replay.php', array('id' => $course->id, 'names' => $shownames));
+$PAGE->set_url('/blocks/behaviour/replay.php', array(
+    'id' => $course->id,
+    'names' => $shownames,
+    'uselsa' => $uselsa
+));
 $PAGE->set_title(get_string('title', 'block_behaviour'));
 
 // JavaScript.
@@ -265,6 +257,6 @@ $PAGE->set_heading($course->fullname);
 // Output page.
 echo $OUTPUT->header();
 
-echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames));
+echo html_writer::table(block_behaviour_get_html_table($panelwidth, $legendwidth, $shownames, $uselsa));
 
 echo $OUTPUT->footer();

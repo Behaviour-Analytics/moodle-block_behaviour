@@ -68,6 +68,9 @@ module.exports = function(grunt) {
                     rename: uglifyRename
                 }],
                 options: {
+                    sourceMap: {
+                        includeSources: true,
+                    },
                     report: 'none',
                     banner: '/*! <%= pkg.name %> v<%= pkg.version %> <%= grunt.template.today("dd-mm-yyyy") %> */\n'
                 }

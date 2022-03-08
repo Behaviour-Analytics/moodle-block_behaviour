@@ -9,4 +9,4 @@ https://github.com/leongersen/noUiSlider and place it in this directory. Then,
 copy the distribute/nouislider.js file into the amd/src folder and the
 distribute/nouislider.min.js file into the amd/build folder (or run grunt). If
 the name of the minified CSS has changed, it will need to be updated in the
-view.php script. Finally, update the lib/thirdpartylibs.xml file.
+view.php script. Finally, update the thirdpartylibs.xml file.

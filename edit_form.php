@@ -55,5 +55,13 @@ class block_behaviour_edit_form extends block_edit_form {
             get_string('shownamesdesc', 'block_behaviour'));
         $mform->setDefault('config_shownames', 0);
         $mform->disabledIf('config_shownames', 'allowchoice', 'eq', 0);
+
+        // Use LSA settings header.
+        $mform->addElement('header', 'uselsahdr', get_string('adminheaderuselsa', 'block_behaviour'));
+
+        // The checkbox for using LSA.
+        $mform->addElement('advcheckbox', 'config_uselsa', get_string('uselsalabel', 'block_behaviour'),
+            get_string('uselsadesc', 'block_behaviour'));
+        $mform->setDefault('config_uselsa', 0);
     }
 }
