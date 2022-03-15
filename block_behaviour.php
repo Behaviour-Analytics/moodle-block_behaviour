@@ -49,7 +49,7 @@ class block_behaviour extends block_base {
      */
     public function init() {
 
-        $this->title = get_string("title", "block_behaviour");
+        $this->title = get_string("blocktitle", "block_behaviour");
     }
 
     /**

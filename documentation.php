@@ -126,6 +126,10 @@ if ($context && has_capability('block/behaviour:export', $context)) {
     echo html_writer::empty_tag('br');
 }
 
+echo html_writer::tag('a', get_string('docspublications', 'block_behaviour'), array(
+    'href' => new moodle_url('/blocks/behaviour/documentation.php#pubs', $linkparams)));
+echo html_writer::empty_tag('br');
+
 echo html_writer::tag('a', get_string('docsissues', 'block_behaviour'), array(
     'href' => 'https://github.com/Behaviour-Analytics/moodle-block_behaviour/issues'));
 echo html_writer::empty_tag('br');
@@ -231,5 +235,14 @@ if ($context && has_capability('block/behaviour:export', $context)) {
     echo html_writer::empty_tag('br');
     echo html_writer::empty_tag('br');
 }
+
+// Publications.
+$pad = ['style' => 'padding-left: 22px;'];
+echo html_writer::div(get_string('docspublications', 'block_behaviour'), 'bigger', array('id' => 'pubs'));
+echo html_writer::empty_tag('br');
+echo html_writer::start_tag('dl');
+echo html_writer::tag('dt', '1.');
+echo html_writer::tag('dd', get_string('docspubs1', 'block_behaviour'), $pad);
+echo html_writer::end_tag('dl');
 
 echo $OUTPUT->footer();

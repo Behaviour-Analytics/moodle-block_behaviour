@@ -25,8 +25,8 @@
 
 defined('MOODLE_INTERNAL') || die();
 
-$plugin->version   = 2022030800;
+$plugin->version   = 2022031400;
 $plugin->requires  = 2015111600; // Moodle 3.0.
 $plugin->component = 'block_behaviour';
-$plugin->release   = 'v0.9.0';
+$plugin->release   = 'v0.9.1';
 $plugin->maturity  = MATURITY_BETA;

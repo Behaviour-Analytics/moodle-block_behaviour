@@ -770,9 +770,9 @@
             weightSlider.id = 'weight-slider';
             weightSlider.type = 'range';
             weightSlider.min = '-0.2';
-            weightSlider.max = '2';
+            weightSlider.max = '1';
             weightSlider.step = '0.2';
-            weightSlider.value = '0.6';
+            weightSlider.value = '0.0';
             weightSlider.style.width = '130px';
             weightSlider.addEventListener('change', function() {
                 linkForce.strength(this.value);
@@ -989,7 +989,7 @@
 
             graphNodes.on('mouseover', null);
 
-            if (!keepText) {
+            if (keepText === false) {
                 ddd.selectAll('.text').remove();
                 ddd.selectAll('rect').remove();
             }
@@ -1220,7 +1220,7 @@
 
                     // Mouse is outside of border and iframe, remove them.
                     inIframe = false;
-                    setTimeout(removeIframes, 750);
+                    setTimeout(removeIframes, 400);
                 });
 
                 // When mouse moves over border, keep iframe visible.
@@ -1253,7 +1253,7 @@
             graphNodes.on('mouseout', null);
             graphLinks.on('mouseout', null);
 
-            setTimeout(removeIframes, 750);
+            setTimeout(removeIframes, 400);
         }
 
         /**
@@ -5095,7 +5095,7 @@
                 .on('mouseover', null);
 
             // Call event listener manually to create text boxes and iframes.
-            mouseover(link.source);
+            mouseover(link.source, false);
             iframeRight = true;
             mouseover(link.target, true);
             iframeRight = false;
