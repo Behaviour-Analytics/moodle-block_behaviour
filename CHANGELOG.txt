@@ -1,0 +1,79 @@
+Version: 0.9.1
+  Added version number to block title.
+  Added links for other plugins and Personalised Study Guide project webpage to documentation.
+  Added "Publications" section to documentation.
+  Change node mouse over iframe timeout from 750 to 400.
+  Weight slider default is now 0.
+
+Version: 0.9.0
+  Finish survey management feature.
+  Added the ability to integrate with the Personalised Study Guide coure format.
+  New feature: graph generation with Lag Sequential Analysis.
+
+Version: 0.7.8
+  Added global setting to allow teacher to show student names.
+  Added instance setting to allow teachers to choose to show student names.
+  New feature: clustering dashboard with summary and iteration tables.
+  Start of survey management feature in dashboard.
+  Added 3 default surveys.
+
+Version: 0.7.5
+  Added navigation menu to interfaces.
+  New feature: ability to select students by groups when viewing and clustering.
+
+Version: 0.7.4
+  Bug fix for student role ID, using unique shortname instead of archetype.
+
+Version: 0.7.3
+  Added features to delete selected clustering data.
+
+Version: 0.7.1
+  Changed rand() call to mt_rand() in task class
+  Minor bug fix where data not being reset during replay and causing errors
+  Change default setting for showing student IDs, won't show by default
+
+Version: 0.7.0
+  Minor bug fix where replay log results incorrect when go back and forth around iteration 0
+  Minor bug fix where can not drag students immediately after move slider
+  Minor bug fix where student centroids on top of clustering centroids after move slider
+  Minor bug fix where student drag message on when move slider and can not drag students
+  Minor bug fix where mouse hover over student centroid shows their graph when should not
+  Minor bug fix where cluster slider disabled when should not be
+
+Version: 0.6.10
+  Updated readme documentation with LORD integration
+  Minor bug fix where iframe preview for removed module get 404 error
+  Major bug fix where removing a module after it was used in clustering produces errors during replay
+  Minor bug fix where student drag message says on when researcher views anothers replay
+  Minor bug fix where researcher could not view replay results of other users
+  Minor bug fix where cluster slider disabled when should not be
+
+Version: 0.6.9
+  Added issues link to documentation
+  Minor bug fix where clustering in an empty course produces JS error
+  Minor bug fix where trying to update centroids when no data
+  Major bug fix where clustering done with LORD graphs now updates properly in background
+  Separate pages for graphing, configuring, and replay
+  Export complete dataset now exports LORD data
+
+Version: 0.6.7
+  Changed version numbers to account for change in Moodle plugin directory version numbers
+  Minor display improvements for later versions of Moodle, LORD integration options page not showing if no LORD graph
+  Clustering stage and replay interface enhancements, added back admin option for LORD integration, updated documentation
+  Minor bug fix where cluster slider could be adjusted while playing
+  Minor bug fix where student id is showing instead of name when text box above centroid
+  Feature enhancement for LORD integration where graph appears the same as in LORD plugin
+  Bug fix where researcher can manipulate another user's graph when course section has no modules
+  Feature enhancements for LORD integration, teachers can now turn integration on/off and choose custom or system graph
+  Minor bug fix where exporting current logs from course with no users produced DB error
+  Bug fix where imported records have no associated name in the DB, so students are missing from menu
+  Features to use graph generated with Learning Object Relation Discovery (LORD) plugin
+  Work around for older Moodle versions which do not have a user/lib.php::user_get_participants() function implemented
+  Setting to show student names rather than sequential ids
+
+Version: 0.6.4
+  Student study id feature, which can be turned off in global settings
+  Option to export a complete anonymized dataset
+
+Version: 0.6.2
+  Initial release of the plugin which contains the basic functionality described in the program's documentation
